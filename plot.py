@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import os
 import pandas as pd
 from plotnine import ggplot, aes, geom_area, ggsave, theme, geom_segment, scale_y_continuous, scale_x_continuous, xlab, ylab, theme_bw, scale_fill_manual, themes

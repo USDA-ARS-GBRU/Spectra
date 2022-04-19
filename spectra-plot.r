@@ -27,9 +27,7 @@ option_list <- list(
   make_option(c("-g", "--gff"), type="character", default=NULL, help="if specified, generate plot of overlapping gene annotations. [default %default]", dest="gff"),
   make_option(c("-l","--show-legend"), action="store_true", default=FALSE, help="display triplet color legend [default %default]", dest="legend"),
   make_option(c("-o","--output-file"), type="character", default=NULL, help="output filename [default %default]", dest="output_filename"),
-  make_option(c("-c","--collapse"), action="store_true", default=FALSE, help="collapse reverse compliments [default %default]", dest="reverse"),
   make_option(c("-r","--resolution"), type="numeric", default=300, help="plotting dpi resolution [default %default]", dest="resolution"),
-  make_option(c("-S","--simplify"), action="store_true", default=FALSE, help="only display the first of each rotated triplet [default %default]", dest="simplify_bases"),
   make_option(c("-f","--freq"), action="store_true", default=FALSE, help="data already transformed to frequencies [default %default]", dest="frequencies")
   
 )
@@ -57,22 +55,17 @@ if(!is.null(opt$window_size)){
 
 values = values %>% tidyr::pivot_longer(cols=starts_with(c("A","C","G","T")))
 
-if(opt$simplify_bases){
-  values$name = unname(sapply(values$name,simplify))
-}
-
 tripletNames=names(table(values$name))
 tripletColors=sapply(tripletNames,triplerColor)
 
 size = c(min(values$Start),max(values$End))
 height_factor = length(table(values$Sequence))
-
 if(opt$frequencies){
   p = ggplot() +
-    geom_area(data=values, aes(fill=name,x=(End+Start)/2,y=(value)), stat="identity",position="stack")
+    geom_area(data=values, aes(fill=name,x=(End+Start)/2,y=value), stat="identity",position="stack")
 }else{
   p = ggplot() +
-    geom_area(data=values, aes(fill=name,x=(End+Start)/2,y=(value)/(End-Start+1)), stat="identity",position="stack")
+    geom_area(data=values, aes(fill=name,x=(End+Start)/2,y=value/(End-Start+1)), stat="identity",position="stack")
 }
 p = p + scale_fill_manual(values=tripletColors) +
   scale_y_continuous(limits=c(0,1),expand = c(0, 0)) +
@@ -124,5 +117,5 @@ if(is.null(opt$output_filename)){
   output_file = opt$output_filename
 }
 
-#ggsave(filename=output_file,device=opt$output_filetype,width=10,height=1+height_factor*2,units="in",dpi=300,limitsize=F)
-ggsave(filename=output_file,width=10,height=1+height_factor*2,units="in",dpi=opt$resolution,limitsize=F)
+ggsave(filename=output_file,device=opt$output_filetype,width=10,height=1+height_factor*2,units="in",dpi=300,limitsize=F)
+#ggsave(filename=output_file,width=10,height=1+height_factor*2,units="in",dpi=opt$resolution,limitsize=F)

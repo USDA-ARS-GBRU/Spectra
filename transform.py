@@ -1,24 +1,26 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import os
 from SpectraClass import Spectra, writeToFile
-
-# ('-i', '--input', dest='input_tsv', type=str, help='Input spectra tsv', required=True)
-# ('-o', '--output', '--output', dest='output', type=str, help='Output spectra tsv', default='transformed_output.tsv')
-# ('-r', '--weighted-rm', dest='weighted_removal', action='store_true', help='Remove windows with spectra frequencies similar to the whole sequence', default=False)
-# ('-n', '--weighted-norm', dest='weighted_normalization', action='store_true', help='Normalize spectra frequencies for each window by the frequencies for the whole sequence', default=False)
-# ('-s', '--window-resize', dest='resize_window', type=int, help='Image resolution in DPI', default=300)
 
 def execute(args):
     if not os.path.exists(args.input_tsv):
         print("Could not find input file '" + args.input_tsv + "'")
         exit()
 
-    spectra = Spectra(args.input_tsv)
+    spectra = Spectra(args.input_tsv, frequencies=args.frequencies)
+    if args.resize_window:
+        spectra.resizeWindows(args.resize_window)
 
-    #spectra.setGlobalFrequencies()
-    spectra.removeOutliers()
-    writeToFile(spectra, "modified.tsv")
-    #print(len(spectra.getMerSubset(library=['VmandF.fna'], coords=(1, 6000))))
+    if args.weighted_removal and args.weighted_normalization:
+        print("Error: cannot process both commands, normalizing Spectra only")
+        spectra.setGlobalFrequencies()
+        spectra.reduceByGlobalFrequencies()
+    elif args.weighted_normalization:
+        spectra.setGlobalFrequencies()
+        spectra.reduceByGlobalFrequencies()
+    elif args.weighted_removal:
+        spectra.setGlobalFrequencies()
+        spectra.removeOutliers()
 
-    #print(spectra.globalFrequencies)
+    writeToFile(spectra, args.output)

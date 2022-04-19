@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 # this is the script to house all components
 # Core imports: csv, argparse, and os will be needed for all three arms
@@ -6,10 +6,6 @@ import csv
 import argparse
 import importlib
 import os
-
-def chooseSubprogram(command):
-    if os.path.exists(command):
-        counter = importlib.import_module(command)
 
 # TODO: modify argparse to be a universal set of inputs
 parser = argparse.ArgumentParser(description='Spectra genetic profiling. Counting, processing, and visualization of 3-mers')
@@ -34,7 +30,7 @@ parserTransform.add_argument('-o', '--output', '--output', dest='output', type=s
 parserTransform.add_argument('-r', '--weighted-rm', dest='weighted_removal', action='store_true', help='Remove windows with spectra frequencies similar to the whole sequence', default=False)
 parserTransform.add_argument('-n', '--weighted-norm', dest='weighted_normalization', action='store_true', help='Normalize spectra frequencies for each window by the frequencies for the whole sequence', default=False)
 parserTransform.add_argument('-f', '--freq', dest='frequencies', action='store_true', help='Mark this is Spectra data is already in frequencies', default=False)
-parserTransform.add_argument('-s', '--window-resize', dest='resize_window', type=int, help='Image resolution in DPI', default=300)
+parserTransform.add_argument('-s', '--window-resize', dest='resize_window', type=int, help='Resize windows to summarize N for every 1 window')
 
 parserPlot = subparser.add_parser('plot', description='Plot spectra profiles')
 parserPlot.add_argument('-i', '--input', dest='input_tsv', type=str, help='Input spectra tsv', required=True)
@@ -48,7 +44,10 @@ parserPlot.add_argument('-r', '--dpi', dest='image_resolution', type=int, help='
 
 args = parser.parse_args()
 
-if os.path.exists(args.subparser+".py"):
+scriptDirectory = os.path.dirname(__file__)
+subparserScript = scriptDirectory + "/" + args.subparser + ".py"
+
+if os.path.exists(subparserScript):
     script = importlib.import_module(args.subparser)
     script.execute(args)
 # Set a switch here that determines which subprogram to run

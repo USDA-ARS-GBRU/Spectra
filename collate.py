@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import os
 import csv
@@ -16,5 +16,7 @@ def execute(args):
                     if not headers:
                         headers = next(tsvReader)
                         tsvWriter.writerow(headers)
+                    else:
+                        next(tsvReader)
                     for spectraWindow in tsvReader:
                         tsvWriter.writerow(spectraWindow)
