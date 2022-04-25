@@ -14,7 +14,8 @@ def groupByRows(group, rows):
 def getGlobalFrequencies(spectra):
     counts = np.array(spectra.sum())
     return dict(zip(spectra.columns[4:], np.divide(counts[4:], counts[3] - counts[2] - len(spectra.Library))))
-def filterNormal(spectra, frequencies):
+
+def filterNormal(spectra, frequencies, chiValue=1, normal=False):
     frequencies = np.array(np.divide(list(frequencies.values()), np.sum(list(frequencies.values()))))
     for row in spectra.iterrows():
         if row[1][4:].sum() == 0:
@@ -23,12 +24,12 @@ def filterNormal(spectra, frequencies):
             localFrequencies = np.array(np.divide(row[1][4:], row[1]['End']-row[1]['Start']-1))
             if np.sum(localFrequencies) < 1:
                 localFrequencies = np.divide(localFrequencies, np.sum(localFrequencies))
-                chiResult = sp.chisquare(localFrequencies, f_exp=frequencies)
-                if chiResult[0] > 1:
+            chiResult = sp.chisquare(localFrequencies, f_exp=frequencies)
+            if normal:
+                if chiResult[0] <= chiValue:
                     spectra.drop(row[0], inplace=True)
             else:
-                chiResult = sp.chisquare(localFrequencies, f_exp=frequencies)
-                if chiResult[0] > 1:
+                if chiResult[0] > chiValue:
                     spectra.drop(row[0], inplace=True)
     return spectra
 
@@ -68,27 +69,26 @@ def execute(args):
             for group in spectraGroups:
                 for index in range(0, len(group[1]), targetFactor):
                     subset = group[1].iloc[index:index+targetFactor]
-                    newsubset = subset.sum().to_frame().transpose()
-                    newsubset['Library'][0] = group[0][0]
-                    newsubset['Sequence'][0] = group[0][1]
-                    newsubset['Start'][0] = subset['Start'].min()
-                    newsubset['End'][0] = subset['End'].max()
-                    spectra = pd.concat([spectra, newsubset])
+                    newSubset = subset.sum().to_frame().transpose()
+                    newSubset['Library'][0] = group[0][0]
+                    newSubset['Sequence'][0] = group[0][1]
+                    newSubset['Start'][0] = subset['Start'].min()
+                    newSubset['End'][0] = subset['End'].max()
+                    spectra = pd.concat([spectra, newSubset])
 
     frequencies = {}
-    if args.weighted_removal or args.weighted_normalization or args.verbose:
+    if args.weighted_removal or args.weighted_normalization or args.weighted_keep or args.verbose:
         frequencies = getGlobalFrequencies(spectra)
 
     if args.verbose:
         print('Reported frequencies (JSON/pydict):')
         print(frequencies)
 
-    if args.weighted_removal and args.weighted_normalization:
-        print("Warning: cannot process both commands, normalizing Spectra only")
-        spectra = reduceFrequencies(spectra, frequencies)
-    elif args.weighted_normalization:
+    if args.weighted_normalization:
         spectra = reduceFrequencies(spectra, frequencies)
     elif args.weighted_removal:
-        spectra = filterNormal(spectra, frequencies)
+        spectra = filterNormal(spectra, frequencies, normal=False)
+    elif args.weighted_keep:
+        spectra = filterNormal(spectra, frequencies, normal=True)
 
     spectra.to_csv(args.output, sep='\t', index=False)

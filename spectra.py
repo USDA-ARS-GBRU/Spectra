@@ -26,7 +26,8 @@ parserCollate.add_argument('-o', '--output', dest='output', help='Output spectra
 parserTransform = subparsers.add_parser('transform', description='Transform spectra data for additional insight')
 parserTransform.add_argument('-i', '--input', dest='input_tsv', type=str, help='Input spectra tsv', required=True)
 parserTransform.add_argument('-o', '--output', '--output', dest='output', type=str, help='Output spectra tsv', default='transformed_output.tsv')
-parserTransform.add_argument('-r', '--weighted-rm', dest='weighted_removal', action='store_true', help='Remove windows with spectra frequencies similar to the whole sequence', default=False)
+parserTransform.add_argument('-r', '--weighted-rm', dest='weighted_removal', action='store_true', help='Remove windows with spectra frequencies similar to the global frequencies', default=False)
+parserTransform.add_argument('-a', '--weighted-keep', dest='weighted_keep', action='store_true', help='Remove windows with spectra frequencies different from the global frequencies', default=False)
 parserTransform.add_argument('-n', '--weighted-norm', dest='weighted_normalization', action='store_true', help='Normalize spectra frequencies for each window by the frequencies for the whole sequence', default=False)
 parserTransform.add_argument('-f', '--freq', dest='frequencies', action='store_true', help='Mark this is Spectra data is already in frequencies', default=False)
 parserTransform.add_argument('-s', '--window-resize', dest='resize_window', type=int, help='Resize windows to summarize N for every 1 window')
@@ -45,8 +46,8 @@ parserPlot.add_argument('-r', '--dpi', dest='image_resolution', type=int, help='
 args = parser.parse_args()
 
 scriptDirectory = os.path.dirname(__file__)
-subparsersScript = scriptDirectory + "/" + args.subparser + ".py"
+subparsersScript = scriptDirectory + "/" + args.subparsers + ".py"
 
 if os.path.exists(subparsersScript):
-    script = importlib.import_module(args.subparser)
+    script = importlib.import_module(args.subparsers)
     script.execute(args)
