@@ -2,8 +2,8 @@
 import os
 import numpy as np
 import scipy.stats as sp
-from SpectraClass import Spectra, writeToFile
 import pandas as pd
+# from SpectraClass import Spectra, writeToFile
 
 def groupByRows(group, rows):
     subGroups = group.groupby(group.index // rows)
@@ -42,7 +42,7 @@ def execute(args):
         print("Could not find input file '" + args.input_tsv + "'")
         exit()
 
-    spectra = Spectra(args.input_tsv, frequencies=args.frequencies)
+    # spectra = Spectra(args.input_tsv, frequencies=args.frequencies)
     # if args.resize_window:
     #     spectra.resizeWindows(args.resize_window)
     #
@@ -58,8 +58,6 @@ def execute(args):
     #     spectra.removeOutliers()
     #
     # writeToFile(spectra, args.output)
-
-    # code stops here - after this is
 
     spectra = pd.read_csv(args.input_tsv, delimiter='\t')
     if args.resize_window:

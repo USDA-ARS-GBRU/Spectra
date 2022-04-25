@@ -25,14 +25,15 @@ def execute(args):
     if not os.path.exists(args.input_sequence):
         print("Couldn't find input file '"+args.input_sequence)
         exit()
+    sequences = {}
     try:
         sequences = SeqIO.to_dict(SeqIO.parse(args.input_sequence, args.sequence_format))
+        if len(sequences.keys()) == 0:
+            print(
+                "Sequence file '" + args.input_sequence + "' could not be loaded in format '" + args.sequence_format + "' or has incorrectly formatted sequences")
+            exit()
     except ValueError:
         print("Sequence file '"+args.input_sequence+"' could not be loaded in format '"+args.sequence_format+"'")
-        exit()
-
-    if len(sequences.keys()) == 0:
-        print("Sequence file '"+args.input_sequence+"' could not be loaded in format '"+args.sequence_format+"' or has incorrectly formatted sequences")
         exit()
 
     with open(args.output, 'w', newline='') as fileOutput:
@@ -51,7 +52,7 @@ def execute(args):
             while i + window_tail < len(sequences[sequence]):
                 rowCount = windowCount(str(sequences[sequence][i - window_lead:i + window_tail].seq).upper(), queries, args.proportions)
                 headers = sequence.split("_") if args.libraries else [os.path.basename(args.input_sequence), sequence]
-                rowText = headers + [i - window_lead +1, i + window_tail] + rowCount
+                rowText = headers + [i - window_lead + 1, i + window_tail] + rowCount
                 tsvWriter.writerow(rowText)
                 i += args.spacing
             rowCount = windowCount(str(sequences[sequence][i - window_lead:i + window_tail].seq).upper(), queries, args.proportions)

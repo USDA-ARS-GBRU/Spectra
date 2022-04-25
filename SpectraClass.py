@@ -1,11 +1,9 @@
 import csv
 import scipy.stats as sp
-import numpy as np
 
 def combineWindows(windows):
     if len(windows) > 1:
-        windowInfo = windows[0]
-        combinedWindow = Window(library=windows[0].library, sequence=windows[0].sequence, coords=(windows[0].coords[0], windows[-1].coords[1]))
+        combinedWindow = Window(library=windows[0].library, sequence=windows[0].sequence, coordinates=(windows[0].coords[0], windows[-1].coords[1]))
         countNames = list(windows[0].counts.keys())
         combinedWindow.setCounts(countNames, [sum([window.counts[name] for window in windows]) for name in countNames])
         combinedWindow.setFrequenciesFromCounts()
@@ -60,14 +58,18 @@ class Spectra:
                     newWindow.setFrequenciesFromCounts()
                 self.windows.append(newWindow)
 
-    def getMerSubset(self, library=[], sequence=[], coords=0):
+    def getMerSubset(self, library=None, sequence=None, coordinates=0):
+        if not sequence:
+            sequence = []
+        if not library:
+            library = []
         toReturn = [a for a in self.windows]
         if library:
             toReturn = [a for a in toReturn if a.library in library]
         if sequence:
             toReturn = [a for a in toReturn if a.sequence in sequence]
-        if isinstance(coords, tuple) and len(coords) > 1:
-            toReturn = [a for a in toReturn if a.coords[0] >= coords[0] and a.coords[1] <= coords[1]]
+        if isinstance(coordinates, tuple) and len(coordinates) > 1:
+            toReturn = [a for a in toReturn if a.coords[0] >= coordinates[0] and a.coords[1] <= coordinates[1]]
         return toReturn
 
     def getLibraryAndSequenceList(self):
@@ -99,7 +101,6 @@ class Spectra:
         for library in librarySequences:
             for sequence in librarySequences[library]:
                 windowSubset = self.getMerSubset(library=library, sequence=sequence)
-                windowSize = windowSubset[0].coords[1] - windowSubset[0].coords[0] + 1
                 for index in range(0, len(windowSubset), targetFactor):
                     replacementSpectraWindows.append(combineWindows(windowSubset[index:index+targetFactor]))
         self.windows = replacementSpectraWindows
@@ -125,20 +126,20 @@ class Spectra:
                 toRemove.append(i)
             elif sum(windowFreq) < 1:
                 windowFreq = frequencyFromValues(windowFreq)
+                chiResult = sp.chisquare(windowFreq, f_exp=globalFreq)
+                if chiResult[1] >= .999:
+                    toRemove.append(i)
             else:
                 chiResult = sp.chisquare(windowFreq, f_exp=globalFreq)
                 if chiResult[1] >= .999:
                     toRemove.append(i)
         for remove in toRemove[::-1]:
             self.windows.pop(remove)
-            #else:
-
-            #old frequencies
 
 class Window:
-    def __init__(self, library, sequence, coords):
+    def __init__(self, library, sequence, coordinates):
         self.counts = {}
-        self.coords = coords
+        self.coordinates = coordinates
         self.library = library
         self.sequence = sequence
         self.frequencies = {}
@@ -150,12 +151,12 @@ class Window:
         self.setCountsFromFrequencies()
 
     def setFrequenciesFromCounts(self):
-        maxCount = self.coords[1] - self.coords[0] - 1
+        maxCount = self.coordinates[1] - self.coordinates[0] - 1
         for count in self.counts:
             self.frequencies[count] = self.counts[count] / maxCount
 
     def setCountsFromFrequencies(self):
-        maxCount = self.coords[1] - self.coords[0] -1
+        maxCount = self.coordinates[1] - self.coordinates[0] - 1
         for frequency in self.frequencies:
             self.counts[frequency] = int(self.frequencies[frequency] * maxCount)
 
@@ -173,5 +174,5 @@ class Window:
     def setSequence(self, sequence):
         self.sequence = sequence
 
-    def setCoords(self, coords):
-        self.coords = (coords[0], coords[1])
+    def setCoordinates(self, coordinates):
+        self.coordinates = (coordinates[0], coordinates[1])
