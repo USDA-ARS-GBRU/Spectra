@@ -1,5 +1,6 @@
 import csv
 import scipy.stats as sp
+import numpy as np
 
 def combineWindows(windows):
     if len(windows) > 1:
@@ -17,7 +18,11 @@ def writeToFile(spectra, outputFilePath):
         csvWriter = csv.writer(outputFile, delimiter='\t')
         csvWriter.writerow(["Library", "Sequence", "Start", "End"] + list(spectra.windows[0].counts.keys()))
         for window in spectra.windows:
-            csvWriter.writerow(windowToList(window))
+            if isinstance(window, list):
+                print(window)
+                csvWriter.writerow(windowToList(window[0]))
+            else:
+                csvWriter.writerow(windowToList(window))
 
 def windowToList(window):
     return [window.library, window.sequence, window.coords[0], window.coords[1]] + [window.counts[a] for a in window.counts]
@@ -78,6 +83,9 @@ class Spectra:
         for mer in self.mers:
             self.globalCounts[mer] = sum([a.counts[mer] for a in self.windows])
         pass
+
+    def getGlobalFrequencies(self):
+        return self.globalFrequencies
 
     def setGlobalFrequencies(self):
         totalLength = sum([a.coords[1] - a.coords[0] - 1 for a in self.windows])
