@@ -6,7 +6,18 @@ import os
 from Bio import SeqIO
 import csv
 from math import ceil, floor
+import re
+import multiprocessing as mp
 
+# current, most-efficient window counter
+def mpWindowCount(seq, queries, start, end, names):
+    return names + [start + 1, end] + [seq.count_overlap(a) for a in queries]
+
+# broken function - returns non-overlapping chunks?
+def pdWindowCount(seq, queries, proportions):
+    return [len(re.findall(a, seq)) for a in queries]
+
+# original, slow window counter
 def windowCount(seq, queries, proportions):
     counts = [0] * len(queries)
     for i in range(0, len(seq) - 2):
@@ -25,6 +36,15 @@ def execute(args):
     if not os.path.exists(args.input_sequence):
         print("Couldn't find input file '"+args.input_sequence)
         exit()
+
+    if args.nt:
+        if args.nt > mp.cpu_count():
+            threads = mp.cpu_count()
+        else:
+            threads = args.nt
+    else:
+        threads = 0
+
     sequences = {}
     try:
         sequences = SeqIO.to_dict(SeqIO.parse(args.input_sequence, args.sequence_format))
@@ -47,15 +67,23 @@ def execute(args):
 
         tsvWriter.writerow(["Library", "Sequence", "Start", "End"] + queries)
 
-        for sequence in sequences:
-            i = window_lead
-            while i + window_tail < len(sequences[sequence]):
-                rowCount = windowCount(str(sequences[sequence][i - window_lead:i + window_tail].seq).upper(), queries, args.proportions)
+        if threads:
+            for sequence in sequences:
+                pool = mp.Pool(processes=threads)
                 headers = sequence.split("_") if args.libraries else [os.path.basename(args.input_sequence), sequence]
-                rowText = headers + [i - window_lead + 1, i + window_tail] + rowCount
+                results = [pool.apply(mpWindowCount, [sequences[sequence].seq.upper()[a:a+args.width], queries, a, a+args.width, headers]) for a in range(0, len(sequences[sequence].seq.upper()), args.spacing)]
+                tsvWriter.writerows(results)
+                pool.close()
+                pool.join()
+        else:
+            for sequence in sequences:
+                i = window_lead
+                while i + window_tail < len(sequences[sequence]):
+                    headers = sequence.split("_") if args.libraries else [os.path.basename(args.input_sequence), sequence]
+                    rowText = mpWindowCount(sequences[sequence].seq.upper()[i - window_lead:i + window_tail], queries, i - window_lead, i + window_tail, headers)
+                    tsvWriter.writerow(rowText)
+                    i += args.spacing
+                headers = sequence.split("_") if args.libraries else [os.path.basename(args.input_sequence), sequence]
+                rowText = mpWindowCount(sequences[sequence].seq.upper()[i - window_lead:i + window_tail], queries,
+                                        i - window_lead, i + window_tail, headers)
                 tsvWriter.writerow(rowText)
-                i += args.spacing
-            rowCount = windowCount(str(sequences[sequence][i - window_lead:i + window_tail].seq).upper(), queries, args.proportions)
-            headers = sequence.split("_") if args.libraries else [os.path.basename(args.input_sequence), sequence]
-            rowText = headers + [i - window_lead + 1, i + window_tail] + rowCount
-            tsvWriter.writerow(rowText)

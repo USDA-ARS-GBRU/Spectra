@@ -72,7 +72,7 @@ if(opt$frequencies){
     geom_area(data=values, aes(fill=name,x=(End+Start)/2,y=value/(End-Start+1)), stat="identity",position="stack")
 }
 p = p + scale_fill_manual(values=tripletColors) +
-  scale_y_continuous(limits=c(0,1),expand = c(0, 0)) +
+  #scale_y_continuous(limits=c(-1,2),expand = c(0, 0)) +
   scale_x_continuous(limits=size,breaks=waiver(),minor_breaks = waiver(),n.breaks = 10, expand = c(0, 0)) +
   xlab("Window Position (nucleotide)") +
   ylab("Proportion") +

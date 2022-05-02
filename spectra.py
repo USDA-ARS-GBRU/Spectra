@@ -18,6 +18,7 @@ parserCount.add_argument('-s', '--spacing', dest='spacing', type=int, help='Wind
 parserCount.add_argument('-o', '--output', dest='output', type=str, help='Output tsv file', default='spectra_report.tsv')
 parserCount.add_argument('-l', '--libraries', dest='libraries', action='store_true', help='Sequence names include multiple libraries, prefixed by LIBRARY_', default=False)
 parserCount.add_argument('-p', '--proportions', dest='proportions', action='store_true', help='Return Spectra 3-mer proportions instead of raw counts', default=False)
+parserCount.add_argument('-nt', '--threads', dest='nt', type=int, help='Processor threads', default=0)
 
 parserCollate = subparsers.add_parser('collate', description='Collate multiple spectra output tsv into a multi-library tsv')
 parserCollate.add_argument('-i', '--input', dest='input_tsvs', help='Input spectra tsvs, separated by spaces', nargs='*', required=True)
@@ -26,12 +27,12 @@ parserCollate.add_argument('-o', '--output', dest='output', help='Output spectra
 parserTransform = subparsers.add_parser('transform', description='Transform spectra data for additional insight')
 parserTransform.add_argument('-i', '--input', dest='input_tsv', type=str, help='Input spectra tsv', required=True)
 parserTransform.add_argument('-o', '--output', '--output', dest='output', type=str, help='Output spectra tsv', default='transformed_output.tsv')
-parserTransform.add_argument('-r', '--weighted-rm', dest='weighted_removal', action='store_true', help='Remove windows with spectra frequencies similar to the global frequencies', default=False)
-parserTransform.add_argument('-a', '--weighted-keep', dest='weighted_keep', action='store_true', help='Remove windows with spectra frequencies different from the global frequencies', default=False)
+parserTransform.add_argument('-r', '--weighted-filter', dest='weighted_filter', action='store_true', help='Produce two additional outputs that have outlier windows and normal windows', default=False)
 parserTransform.add_argument('-n', '--weighted-norm', dest='weighted_normalization', action='store_true', help='Normalize spectra frequencies for each window by the frequencies for the whole sequence', default=False)
 parserTransform.add_argument('-f', '--freq', dest='frequencies', action='store_true', help='Mark this is Spectra data is already in frequencies', default=False)
 parserTransform.add_argument('-s', '--window-resize', dest='resize_window', type=int, help='Resize windows to summarize N for every 1 window')
 parserTransform.add_argument('-v', '--verbose', dest='verbose', action='store_true', help='Print global frequencies', default=False)
+parserTransform.add_argument('-nt', '--threads', dest='nt', type=int, help='Processor threads', default=0)
 
 parserPlot = subparsers.add_parser('plot', description='Plot spectra profiles')
 parserPlot.add_argument('-i', '--input', dest='input_tsv', type=str, help='Input spectra tsv', required=True)
