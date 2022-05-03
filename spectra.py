@@ -5,7 +5,15 @@
 import argparse
 import importlib
 import os
+import logging
 
+def moduleFromPath(path):
+    return path[1:].replace(".py", "").replace("/", ".")
+
+
+logging.basicConfig(level=logging.INFO)
+
+# TODO: break up threaded into a separate program
 # TODO: modify argparse to be a universal set of inputs
 parser = argparse.ArgumentParser(description='Spectra genetic profiling. Counting, processing, and visualization of 3-mers')
 subparsers = parser.add_subparsers(title='spectra', dest='subparsers', required=True)
@@ -23,6 +31,7 @@ parserCount.add_argument('-nt', '--threads', dest='nt', type=int, help='Processo
 parserCollate = subparsers.add_parser('collate', description='Collate multiple spectra output tsv into a multi-library tsv')
 parserCollate.add_argument('-i', '--input', dest='input_tsvs', help='Input spectra tsvs, separated by spaces', nargs='*', required=True)
 parserCollate.add_argument('-o', '--output', dest='output', help='Output spectra tsv', default='collated_spectra.tsv')
+parserCollate.add_argument('-nt', '--threads', dest='nt', type=int, help='Processor threads', default=0)
 
 parserTransform = subparsers.add_parser('transform', description='Transform spectra data for additional insight')
 parserTransform.add_argument('-i', '--input', dest='input_tsv', type=str, help='Input spectra tsv', required=True)
@@ -43,12 +52,19 @@ parserPlot.add_argument('-g', '--gff-file', dest='gff_file', type=str, help='Plo
 parserPlot.add_argument('-t', '--gff-tracks', dest='gff_tracks', type=str, help='Plot only annotations matching category Name1,Name2,Name3')
 parserPlot.add_argument('-l', '--legend', dest='show_legend', action='store_true', help='Draw legend', default=False)
 parserPlot.add_argument('-r', '--dpi', dest='image_resolution', type=int, help='Image resolution in DPI', default=300)
+parserPlot.add_argument('-nt', '--threads', dest='nt', type=int, help='Processor threads', default=0)
+
 
 args = parser.parse_args()
 
 scriptDirectory = os.path.dirname(__file__)
-subparsersScript = scriptDirectory + "/" + args.subparsers + ".py"
+if args.nt:
+    subparsersScript = f"/scripts/parallel/{args.subparsers}.py"
+    if not os.path.exists(f"{scriptDirectory}{subparsersScript}"):
+        logging.warning(f'No parallel-processing module for {args.subparsers}, using non-parallel module instead.')
+        subparsersScript = f"/scripts/{args.subparsers}.py"
+else:
+    subparsersScript = f"/scripts/{args.subparsers}.py"
 
-if os.path.exists(subparsersScript):
-    script = importlib.import_module(args.subparsers)
-    script.execute(args)
+script = importlib.import_module(moduleFromPath(subparsersScript))
+script.execute(args)
