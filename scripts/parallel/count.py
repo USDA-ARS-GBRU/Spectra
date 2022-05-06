@@ -3,9 +3,9 @@
 # TODO: create scalability for n-mer
 
 import os
+import time
 from Bio import SeqIO
 import csv
-from math import ceil, floor
 import re
 import multiprocessing as mp
 import logging
@@ -17,8 +17,8 @@ def mpWindowCount(seq, queries, start, end, names):
     return names + [start + 1, end] + [seq.count_overlap(a) for a in queries]
 
 # broken function - returns non-overlapping chunks?
-def pdWindowCount(seq, queries, proportions):
-    return [len(re.findall(a, seq)) for a in queries]
+def pdWindowCount(seq, queries, start, end, names):
+    return names + [start + 1, end] + [len(re.findall(f'(?={a})', str(seq))) for a in queries]
 
 # original, slow window counter
 def windowCount(seq, queries, proportions):
@@ -36,6 +36,7 @@ def windowCount(seq, queries, proportions):
         return counts
 
 def execute(args):
+    startTime = time.time()
     if not os.path.exists(args.input_sequence):
         logging.error(f"Couldn't find input file '{args.input_sequence}'")
         exit()
@@ -59,14 +60,18 @@ def execute(args):
         tsvWriter = csv.writer(fileOutput, delimiter='\t')
 
         bases = ["A", "C", "G", "T"]
-        queries = [a + b + c for c in bases for b in bases for a in bases]
+        queries = [f"{a}{b}{c}" for c in bases for b in bases for a in bases]
 
         tsvWriter.writerow(["Library", "Sequence", "Start", "End"] + queries)
 
         for sequence in sequences:
+            goldilocksSize = len(sequences[sequence])
+
             pool = mp.Pool(processes=threads)
             headers = sequence.split("_") if args.libraries else [os.path.basename(args.input_sequence), sequence]
-            results = [pool.apply(mpWindowCount, [sequences[sequence].seq.upper()[a:a+args.width], queries, a, a+args.width, headers]) for a in range(0, len(sequences[sequence].seq.upper()), args.spacing)]
-            tsvWriter.writerows(results)
-            pool.close()
+            rows = [pool.apply(mpWindowCount, [sequences[sequence].seq.upper()[i:i+args.width], queries, i, i+args.width, headers]) for i in range(0, len(sequences[sequence]), args.spacing)]
             pool.join()
+            tsvWriter.writerows(rows)
+
+            logging.info(f"Sequence {sequence} windows written to output file")
+    logging.info(f'Execution time in seconds: {time.time() - startTime}')
