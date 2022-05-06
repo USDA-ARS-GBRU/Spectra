@@ -42,7 +42,11 @@ def execute(args):
     if not os.path.exists(args.input_sequence):
         logging.error(f"Couldn't find input file '{args.input_sequence}'")
         exit()
-
+        
+    if "," in args.query:
+        queries = args.query.split(',')
+    else:
+        queries = [args.query]
     sequences = {}
     try:
         sequences = SeqIO.to_dict(SeqIO.parse(args.input_sequence, args.sequence_format))
@@ -52,13 +56,11 @@ def execute(args):
     except ValueError:
         logging.error(f"Sequence file '{args.input_sequence}' could not be loaded in format '{args.sequence_format}'")
         exit()
-
+        
     with open(args.output, 'w', newline='') as fileOutput:
         tsvWriter = csv.writer(fileOutput, delimiter='\t')
 
         bases = ["A", "C", "G", "T"]
-        queries = [f"{a}{b}{c}" for c in bases for b in bases for a in bases]
-
         tsvWriter.writerow(["Library", "Sequence", "Start", "End"] + queries)
 
         for sequence in sequences:

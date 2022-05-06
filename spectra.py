@@ -28,6 +28,17 @@ parserCount.add_argument('-l', '--libraries', dest='libraries', action='store_tr
 parserCount.add_argument('-p', '--proportions', dest='proportions', action='store_true', help='Return Spectra 3-mer proportions instead of raw counts', default=False)
 parserCount.add_argument('-nt', '--threads', dest='nt', type=int, help='Processor threads', default=0)
 
+parserQuery = subparsers.add_parser("query", description="Generate tsv file of spectra counts")
+parserQuery.add_argument('-i', '--input', dest='input_sequence', type=str, help='Input sequence file', required=True)
+parserQuery.add_argument('-f', '--format', dest='sequence_format', type=str, help='Input file type', default='fasta')
+parserQuery.add_argument('-q', '--query', dest='query', type=str, help='Query sequences, separated by commas', required=True)
+parserQuery.add_argument('-w', '--width', dest='width', type=int, help='Window width', default='3000')
+parserQuery.add_argument('-s', '--spacing', dest='spacing', type=int, help='Window spacing', default='3000')
+parserQuery.add_argument('-o', '--output', dest='output', type=str, help='Output tsv file', default='spectra_report.tsv')
+parserQuery.add_argument('-l', '--libraries', dest='libraries', action='store_true', help='Sequence names include multiple libraries, prefixed by LIBRARY_', default=False)
+parserQuery.add_argument('-nt', '--threads', dest='nt', type=int, help='Processor threads', default=0)
+
+
 parserCollate = subparsers.add_parser('collate', description='Collate multiple spectra output tsv into a multi-library tsv')
 parserCollate.add_argument('-i', '--input', dest='input_tsvs', help='Input spectra tsvs, separated by spaces', nargs='*', required=True)
 parserCollate.add_argument('-o', '--output', dest='output', help='Output spectra tsv', default='collated_spectra.tsv')
