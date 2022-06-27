@@ -16,7 +16,7 @@ spectraPlot = function(values, tripletColors, legend=FALSE, facet=FALSE, frequen
 	if(frequencies){
 		p = ggplot() + geom_area(data=values, aes(fill=name, x=(End+Start)/2, y=value), stat="identity", position="stack")
 	}else{
-		p = ggplot() + geom_area(data=values, aes(fill=name, x=(End+Start)/2,y=value/(End-Start+1)), stat="identity", position="stack")
+		p = ggplot() + geom_area(data=values, aes(fill=name, x=(End+Start)/2, y=value/(End-Start+1)), stat="identity", position="stack")
 	}
 	if(ylims){
 		p = p + scale_y_continuous(limits=c(0,1), expand=c(0, 0))

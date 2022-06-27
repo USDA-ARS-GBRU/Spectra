@@ -6,13 +6,16 @@ import argparse
 import importlib
 import os
 import logging
+import configparser
+
+
 
 def moduleFromPath(path):
     return path[1:].replace(".py", "").replace("/", ".")
 
 
 logging.basicConfig(level=logging.INFO)
-
+# TODO: add configure.ini for some hard-coded values like chi-square p-value
 # TODO: break up threaded into a separate program
 # TODO: modify argparse to be a universal set of inputs
 parser = argparse.ArgumentParser(description='Spectra genetic profiling. Counting, processing, and visualization of 3-mers')
@@ -38,7 +41,6 @@ parserQuery.add_argument('-o', '--output', dest='output', type=str, help='Output
 parserQuery.add_argument('-l', '--libraries', dest='libraries', action='store_true', help='Sequence names include multiple libraries, prefixed by LIBRARY_', default=False)
 parserQuery.add_argument('-nt', '--threads', dest='nt', type=int, help='Processor threads', default=0)
 
-
 parserCollate = subparsers.add_parser('collate', description='Collate multiple spectra output tsv into a multi-library tsv')
 parserCollate.add_argument('-i', '--input', dest='input_tsvs', help='Input spectra tsvs, separated by spaces', nargs='*', required=True)
 parserCollate.add_argument('-o', '--output', dest='output', help='Output spectra tsv', default='collated_spectra.tsv')
@@ -46,7 +48,7 @@ parserCollate.add_argument('-nt', '--threads', dest='nt', type=int, help='Proces
 
 parserTransform = subparsers.add_parser('transform', description='Transform spectra data for additional insight')
 parserTransform.add_argument('-i', '--input', dest='input_tsv', type=str, help='Input spectra tsv', required=True)
-parserTransform.add_argument('-o', '--output', '--output', dest='output', type=str, help='Output spectra tsv', default='transformed_output.tsv')
+parserTransform.add_argument('-o', '--output', '--output', dest='output', type=str, help='Output spectra tsv', default=False)
 parserTransform.add_argument('-r', '--weighted-filter', dest='weighted_filter', action='store_true', help='Produce two additional outputs that have outlier windows and normal windows', default=False)
 parserTransform.add_argument('-n', '--weighted-norm', dest='weighted_normalization', action='store_true', help='Normalize spectra frequencies for each window by the frequencies for the whole sequence', default=False)
 parserTransform.add_argument('-f', '--freq', dest='frequencies', action='store_true', help='Mark this is Spectra data is already in frequencies', default=False)
@@ -65,6 +67,12 @@ parserPlot.add_argument('-l', '--legend', dest='show_legend', action='store_true
 parserPlot.add_argument('-r', '--dpi', dest='image_resolution', type=int, help='Image resolution in DPI', default=300)
 parserPlot.add_argument('-nt', '--threads', dest='nt', type=int, help='Processor threads', default=0)
 
+parserAnalyze = subparsers.add_parser('analyze', description='Analyze spectra profiles')
+parserAnalyze.add_argument('-i', '--input', dest='input_tsv', type=str, help='Input spectra tsv', required=True)
+parserAnalyze.add_argument('-o', '--output', dest='output_tsv', type=str, help='Output spectra tsv', default=False)
+parserAnalyze.add_argument('-a', '--aligned', dest='is_aligned', action='store_true', help='Check for if input tsv comes from alignment or from sequence data', default=False)
+parserAnalyze.add_argument('-nt', '--threads', dest='nt', type=int, help='Processor threads', default=0)
+parserAnalyze.add_argument('-b', '--binned', dest='is_binned', action='store_true', help='If data already has breakpoints, ', default=False)
 
 args = parser.parse_args()
 

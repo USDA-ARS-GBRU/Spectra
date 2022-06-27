@@ -48,7 +48,7 @@ spectraPlot = function(values, tripletColors, legend=FALSE, facet=FALSE, frequen
 		)
 
 	if(facet){
-		p = p + facet_grid(rows = vars(values$Sequence))
+		p = p + facet_grid(rows = vars(values$Library))
 	}
 	if(!legend){
 		p = p + theme(legend.position = "none")

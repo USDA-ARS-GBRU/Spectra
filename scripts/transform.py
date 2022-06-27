@@ -4,22 +4,19 @@ import numpy as np
 import scipy.stats as sp
 import pandas as pd
 import logging
+import spectral
 
 logging.basicConfig(level=logging.INFO)
 
-def groupByRows(group, rows):
+def groupByRows(group, rows, dim=64):
     subGroups = group.groupby(group.index // rows)
     for subGroup in subGroups:
-        subGroup[1][subGroup[1].keys()[4:]].agg('sum')
+        subGroup[1][subGroup[1].keys()[4:dim+4]].agg('sum')
     return subGroups
 
-def getGlobalFrequencies(spectra):
-    counts = np.array(spectra.sum())
-    return dict(zip(spectra.columns[4:], np.divide(counts[4:], counts[3] - counts[2] - len(spectra.Library))))
-
-def normalize(row, frequencies, chiValue=1):
-    if row[4:68].sum() != 0:
-        localFrequencies = np.array(np.divide(row[4:68], row['End'] - row['Start'] - 1))
+def normalize(row, frequencies, chiValue=1, dim=64):
+    if row[4:dim+4].sum() != 0:
+        localFrequencies = np.array(np.divide(row[4:dim+4], row['End'] - row['Start'] - 1))
         if np.sum(localFrequencies) < 1:
             localFrequencies = np.divide(localFrequencies, np.sum(localFrequencies))
         chiResult = sp.chisquare(localFrequencies, f_exp=frequencies)
@@ -27,20 +24,20 @@ def normalize(row, frequencies, chiValue=1):
     else:
         return 1
 
-def filterNormal(spectra, frequencies, file, chiValue=1):
+def filterNormal(spectra, frequencies, file, chiValue=1, dim=64):
     spectra = spectra.assign(Normal=0)
     frequencies = np.array(np.divide(list(frequencies.values()), np.sum(list(frequencies.values()))))
     for row in spectra.iterrows():
+#        spectra.iloc[row[0], dim+5] = normalize(row[1], frequencies, chiValue)
         spectra.iloc[row[0], 68] = normalize(row[1], frequencies, chiValue)
-
     resultsOut = spectra.copy()
-    resultsOut.iloc[spectra['Normal'] == 1, 4:68] = 0
+
+    resultsOut.iloc[spectra['Normal'] == 1, 4:dim+4] = 0
     del resultsOut['Normal']
     resultsOut.to_csv(f"normal_{file}", sep='\t', index=False)
-    spectra.iloc[spectra['Normal'] == 0, 4:68] = 0
+    spectra.iloc[spectra['Normal'] == 0, 4:dim+4] = 0
     del spectra['Normal']
     spectra.to_csv(f"outlier_{file}", sep='\t', index=False)
-
 
 def reduceFrequencies(spectra, frequencies):
     width = spectra['End'][0] - spectra['Start'][0] - 1
@@ -81,16 +78,17 @@ def execute(args):
 
     frequencies = {}
     if args.weighted_filter or args.weighted_normalization or args.verbose:
-        frequencies = getGlobalFrequencies(spectra)
+        frequencies = spectral.getGlobalFrequencies(spectra)
 
     if args.verbose:
         logging.info('Reported frequencies (JSON/pydict):')
         logging.info(frequencies)
 
     if args.weighted_filter:
-        filterNormal(spectra, frequencies, args.output)
+        filterNormal(spectra, frequencies, args.input_tsv)
 
     if args.weighted_normalization:
         spectra = reduceFrequencies(spectra, frequencies)
 
-    spectra.to_csv(args.output, sep='\t', index=False)
+    if args.output:
+        spectra.to_csv(args.output, sep='\t', index=False)
