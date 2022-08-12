@@ -15,46 +15,56 @@ def getBreakpoints(spectra, index=4, length=64, penalty=1000000, min_size=5):
     # for each grouping, calculate rupture breakpoints, then convert them to starting window indices
     for group in spectra:
         data = group[1].iloc[0:len(group[1]), index:index + length].to_numpy()
-        dataAlgo = rpt.KernelCPD(min_size=min_size).fit(data).predict(pen=penalty)
-        output.append((group[0], group[1].iloc[[a-1 for a in dataAlgo], 2:3]['Start'].tolist()))
+        if len(data) > min_size * 2:
+            dataAlgo = rpt.KernelCPD(min_size=min_size).fit(data).predict(pen=penalty)
+            output.append((group[0], group[1].iloc[[a-1 for a in dataAlgo], 2:3]['Start'].tolist()))
+        else:
+            output.append((group[0], []))
     return output
 
 # Use breakpoints to append as bin column to spectra
 def applyBreakpoints(spectra, breakpoints):
-    breakCount = 0
     for bkp in breakpoints:
-        breakName = f'{bkp[0][0]}_{bkp[0][1]}_{breakCount}'
+        breakCount = 0
         index = 1
         for bkpStart in bkp[1]:
+            breakName = f'{bkp[0][0]}_{bkp[0][1]}_{breakCount}'
             indices = list(spectra.loc[(spectra['Library'] == bkp[0][0]) & (spectra['Sequence'] == bkp[0][1]) & (
                     spectra['Start'] >= index) & (spectra['End'] < bkpStart)].index)
             spectra.loc[indices, 'Bin'] = breakName
             index = bkpStart
+            breakCount += 1
         indices = list(spectra.loc[(spectra['Library'] == bkp[0][0]) & (spectra['Sequence'] == bkp[0][1]) & (
                     spectra['Start'] >= index)].index)
         spectra.loc[indices, 'Bin'] = breakName
     return spectra
 
-def getBreakpointFrequencies(spectra):
+def getBreakpointFrequencies(spectra, frequency):
     spectra = spectra.groupby(['Bin', 'Library', 'Sequence'])
     outputs = pd.DataFrame()
     for group in spectra:
-        frequencies = getGlobalFrequencies(group[1])
-        outputs.loc[len(outputs.index), ['Library', 'Sequence', 'Bin', 'Length', ] + list(frequencies.keys())] = [group[0][1], group[0][2], str(group[0][0]), str(max(group[1]['End']) - min(group[1]['Start']) + 1)] + list(frequencies.values())
+        frequencies = getGlobalFrequencies(group[1], frequency)
+        outputs.loc[len(outputs.index), ['Library', 'Sequence', 'Bin', 'Length', 'Start', 'End'] + list(frequencies.keys())] = [group[0][1], group[0][2], str(group[0][0]), str(max(group[1]['End']) - min(group[1]['Start']) + 1), str(min(group[1]['Start'])), str(max(group[1]['End']))] + list(frequencies.values())
     return outputs
 
 # Transform spectra counts to spectra frequencies
-def countToFrequency():
-    return
+def countToFrequency(spectra, dim=64, len=3):
+    for row in spectra.iterrows():
+        denominator = row[1]['End'] - row[1]['Start'] - (len - 2)
+        spectra.iloc[row[0], 4:(dim + 4)] = np.array(spectra.iloc[row[0], 4:(dim + 4)]) / denominator
+    return spectra
 
 # Transform spectra counts to spectra frequencies
 def frequencyToCount():
     return
 
 # Calculate global frequencies across spectra
-def getGlobalFrequencies(spectra):
-    counts = np.array(spectra.sum())
-    return dict(zip(spectra.columns[4:68], np.divide(counts[4:68], counts[3] - counts[2] - len(spectra.Library))))
+def getGlobalFrequencies(spectra, frequency=False):
+    if frequency:
+        return dict(zip(spectra.columns[4:68], np.array(spectra.iloc[0:len(spectra), 4:68].sum()/len(spectra))))
+    else:
+        counts = np.array(spectra.sum())
+        return dict(zip(spectra.columns[4:68], np.divide(counts[4:68], counts[3] - counts[2] - len(spectra.Library))))
 
 # Reduce frequencies from a given set of global frequencies
 def reduceFrequencies():

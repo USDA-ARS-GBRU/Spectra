@@ -52,6 +52,7 @@ parserTransform.add_argument('-o', '--output', '--output', dest='output', type=s
 parserTransform.add_argument('-r', '--weighted-filter', dest='weighted_filter', action='store_true', help='Produce two additional outputs that have outlier windows and normal windows', default=False)
 parserTransform.add_argument('-n', '--weighted-norm', dest='weighted_normalization', action='store_true', help='Normalize spectra frequencies for each window by the frequencies for the whole sequence', default=False)
 parserTransform.add_argument('-f', '--freq', dest='frequencies', action='store_true', help='Mark this is Spectra data is already in frequencies', default=False)
+parserTransform.add_argument('-c', '--convert', dest='convert', action='store_true', help='Convert between counts and frequencies', default=False)
 parserTransform.add_argument('-s', '--window-resize', dest='resize_window', type=int, help='Resize windows to summarize N for every 1 window')
 parserTransform.add_argument('-v', '--verbose', dest='verbose', action='store_true', help='Print global frequencies', default=False)
 parserTransform.add_argument('-nt', '--threads', dest='nt', type=int, help='Processor threads', default=0)
@@ -70,7 +71,9 @@ parserPlot.add_argument('-nt', '--threads', dest='nt', type=int, help='Processor
 parserAnalyze = subparsers.add_parser('analyze', description='Analyze spectra profiles')
 parserAnalyze.add_argument('-i', '--input', dest='input_tsv', type=str, help='Input spectra tsv', required=True)
 parserAnalyze.add_argument('-o', '--output', dest='output_tsv', type=str, help='Output spectra tsv', default=False)
+parserAnalyze.add_argument('-p', '--penalty', dest='penalty', type=float, help='Ruptures breakpoint penalty criterion', default=1000000)
 parserAnalyze.add_argument('-a', '--aligned', dest='is_aligned', action='store_true', help='Check for if input tsv comes from alignment or from sequence data', default=False)
+parserAnalyze.add_argument('-f', '--frequencies', dest='frequency', action='store_true', help='Process breaks by frequencies instead of raw counts', default=False)
 parserAnalyze.add_argument('-nt', '--threads', dest='nt', type=int, help='Processor threads', default=0)
 parserAnalyze.add_argument('-b', '--binned', dest='is_binned', action='store_true', help='If data already has breakpoints, ', default=False)
 

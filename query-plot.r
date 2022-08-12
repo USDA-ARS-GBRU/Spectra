@@ -62,7 +62,16 @@ triplerColor = function(triplet){
 	colors = c("DD","9F","60","11")
 	#colors = c("CC","99","66","33")
 	color = paste0("#",colors[which(substr(triplet,1,1) == bases)],colors[which(substr(triplet,2,2) == bases)],colors[which(substr(triplet,3,3) == bases)])
-	return(color)
+	if(nchar(color)<=3){
+		return(paste0(color,"0000"))
+	}
+	else if(nchar(color)<=5){
+		return(paste0(color,"00"))
+	}
+	else{
+		return(color)
+	}
+	
 }
 
 #Argument parser
