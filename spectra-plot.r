@@ -2,14 +2,11 @@
 ####
 ##### Repeats along (catermerize) sequence for multiple libraries
 
-
-
 #load dependencies
 suppressPackageStartupMessages(library(ggplot2))
 suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(tidyr))
 suppressPackageStartupMessages(library(optparse))
-
 
 spectraPlot = function(values, tripletColors, legend=FALSE, facet=FALSE, frequencies=FALSE, ylims=TRUE){
 	if(frequencies){
@@ -18,19 +15,20 @@ spectraPlot = function(values, tripletColors, legend=FALSE, facet=FALSE, frequen
 		p = ggplot() + geom_area(data=values, aes(fill=name, x=(End+Start)/2,y=value/(End-Start+1)), stat="identity", position="stack")
 	}
 	if(ylims){
-		p = p + scale_y_continuous(limits=c(0,1), expand=c(0, 0))
+        p = p + scale_y_continuous(limits=c(0,1), expand=c(0, 0))
 	}else{
 		p = p + scale_y_continuous(expand=c(0, 0))
 	}
-	
-	p = p +
-		scale_fill_manual(values=tripletColors) +
-		scale_x_continuous(
-			limits=c(min(values$Start), max(values$End)),
-			breaks=waiver(),
-			minor_breaks=waiver(),
-			n.breaks=10,
-			expand=c(0, 0)
+	####
+
+	####
+	p = p + scale_fill_manual(values=tripletColors) +
+	    scale_x_continuous(
+            limits=c(min(values$Start), max(values$End)),
+            breaks=waiver(),
+            minor_breaks=waiver(),
+            n.breaks=10,
+            expand=c(0, 0)
 		) +
 		xlab("Window Position (nucleotide)") +
 		ylab("Proportion") +
@@ -58,8 +56,10 @@ spectraPlot = function(values, tripletColors, legend=FALSE, facet=FALSE, frequen
 
 triplerColor = function(triplet){
 	bases = c("A","C","G","T")
-	colors = c("DD","9F","60","11")
-	#colors = c("CC","99","66","33")
+	#colors = c("DD","9F","60","11")
+	colors = c("C6","6C","3C","10")
+	#colors = c("33", "3F", "6C", "9F")
+	#colors = c("11", "60", "9F", "DD")
 	color = paste0("#",colors[which(substr(triplet,1,1) == bases)],colors[which(substr(triplet,2,2) == bases)],colors[which(substr(triplet,3,3) == bases)])
 	return(color)
 }
@@ -119,6 +119,8 @@ if(is.null(opt$input_filename)){
 	values = read.csv(opt$input_filename,sep="\t",stringsAsFactors = FALSE)
 }
 
+# check for complement file
+
 # filter out wasteful data
 if(!is.null(opt$libraries)){
 	values = values %>% filter(Library%in%as.vector(opt$libraries))
@@ -145,6 +147,7 @@ if(length(lib.names)>1 && !is.null(opt$gffFile)){
 # Pivot table for stacking of columns
 values = values %>% tidyr::pivot_longer(cols=starts_with(c("A","C","G","T")))
 
+
 tripletNames=names(table(values$name))
 tripletColors=sapply(tripletNames,triplerColor)
 
@@ -155,18 +158,14 @@ for(seq in seq.names){
 	if(length(lib.names)>1){
 		faceted=TRUE
 		height.factor = length(names(table(temp.values$Library)))
-
 	}else{
 		faceted=FALSE
 		height.factor = 1
 	}
-	
-	p = spectraPlot(temp.values, tripletColors, legend=opt$legend, facet=faceted, frequencies=opt$frequencies, ylims=opt$ylims)
-	
+    p = spectraPlot(temp.values, tripletColors, legend=opt$legend, facet=faceted, frequencies=opt$frequencies, ylims=opt$ylims)
 	if(!is.null(gff)){
-		p = p + geom_segment(data=gff%>%filter(seqid==seq), aes(x=start, xend=end, y=-.03, yend=-.03,color=strand), size=4) + scale_y_continuous(limits=c(-.06, 1), expand=c(0, 0))
+	    p = p + geom_segment(data=gff%>%filter(seqid==seq), aes(x=start, xend=end, y=-.03, yend=-.03,color=strand), size=4) + scale_y_continuous(limits=c(-.06, 1), expand=c(0, 0))
 	}
-	
 	ggsave(filename=seq.filename,device=output_file[2], width=10, height=1+height.factor*2, units="in", dpi=opt$resolution, limitsize=F)
 }
 

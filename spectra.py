@@ -4,10 +4,9 @@
 # Core imports: argparse, importlib,  and os will be needed for all three arms
 import argparse
 import importlib
-import os
+# import os
 import logging
-import configparser
-
+# import configparser
 
 
 def moduleFromPath(path):
@@ -16,7 +15,6 @@ def moduleFromPath(path):
 
 logging.basicConfig(level=logging.INFO)
 # TODO: add configure.ini for some hard-coded values like chi-square p-value
-# TODO: break up threaded into a separate program
 # TODO: modify argparse to be a universal set of inputs
 parser = argparse.ArgumentParser(description='Spectra genetic profiling. Counting, processing, and visualization of 3-mers')
 subparsers = parser.add_subparsers(title='spectra', dest='subparsers', required=True)
@@ -27,9 +25,9 @@ parserCount.add_argument('-f', '--format', dest='sequence_format', type=str, hel
 parserCount.add_argument('-w', '--width', dest='width', type=int, help='Window width', default='3000')
 parserCount.add_argument('-s', '--spacing', dest='spacing', type=int, help='Window spacing', default='3000')
 parserCount.add_argument('-o', '--output', dest='output', type=str, help='Output tsv file', default='spectra_report.tsv')
+parserCount.add_argument('-c', '--complement', dest='complement', type=str, help='Complement sequence file name. If set, calculates spectra for sequence complement (not reversed-complemented)', default=False)
 parserCount.add_argument('-l', '--libraries', dest='libraries', action='store_true', help='Sequence names include multiple libraries, prefixed by LIBRARY_', default=False)
 parserCount.add_argument('-p', '--proportions', dest='proportions', action='store_true', help='Return Spectra 3-mer proportions instead of raw counts', default=False)
-parserCount.add_argument('-nt', '--threads', dest='nt', type=int, help='Processor threads', default=0)
 
 parserQuery = subparsers.add_parser("query", description="Generate tsv file of spectra counts")
 parserQuery.add_argument('-i', '--input', dest='input_sequence', type=str, help='Input sequence file', required=True)
@@ -39,12 +37,10 @@ parserQuery.add_argument('-w', '--width', dest='width', type=int, help='Window w
 parserQuery.add_argument('-s', '--spacing', dest='spacing', type=int, help='Window spacing', default='3000')
 parserQuery.add_argument('-o', '--output', dest='output', type=str, help='Output tsv file', default='spectra_report.tsv')
 parserQuery.add_argument('-l', '--libraries', dest='libraries', action='store_true', help='Sequence names include multiple libraries, prefixed by LIBRARY_', default=False)
-parserQuery.add_argument('-nt', '--threads', dest='nt', type=int, help='Processor threads', default=0)
 
 parserCollate = subparsers.add_parser('collate', description='Collate multiple spectra output tsv into a multi-library tsv')
 parserCollate.add_argument('-i', '--input', dest='input_tsvs', help='Input spectra tsvs, separated by spaces', nargs='*', required=True)
 parserCollate.add_argument('-o', '--output', dest='output', help='Output spectra tsv', default='collated_spectra.tsv')
-parserCollate.add_argument('-nt', '--threads', dest='nt', type=int, help='Processor threads', default=0)
 
 parserTransform = subparsers.add_parser('transform', description='Transform spectra data for additional insight')
 parserTransform.add_argument('-i', '--input', dest='input_tsv', type=str, help='Input spectra tsv', required=True)
@@ -55,7 +51,7 @@ parserTransform.add_argument('-f', '--freq', dest='frequencies', action='store_t
 parserTransform.add_argument('-c', '--convert', dest='convert', action='store_true', help='Convert between counts and frequencies', default=False)
 parserTransform.add_argument('-s', '--window-resize', dest='resize_window', type=int, help='Resize windows to summarize N for every 1 window')
 parserTransform.add_argument('-v', '--verbose', dest='verbose', action='store_true', help='Print global frequencies', default=False)
-parserTransform.add_argument('-nt', '--threads', dest='nt', type=int, help='Processor threads', default=0)
+parserTransform.add_argument('-y', '--simplify', dest='simplify', action='store_true', help='Simplify forward and reverse-complement counts per window', default=False)
 
 parserPlot = subparsers.add_parser('plot', description='Plot spectra profiles')
 parserPlot.add_argument('-i', '--input', dest='input_tsv', type=str, help='Input spectra tsv', required=True)
@@ -66,7 +62,6 @@ parserPlot.add_argument('-g', '--gff-file', dest='gff_file', type=str, help='Plo
 parserPlot.add_argument('-t', '--gff-tracks', dest='gff_tracks', type=str, help='Plot only annotations matching category Name1,Name2,Name3')
 parserPlot.add_argument('-l', '--legend', dest='show_legend', action='store_true', help='Draw legend', default=False)
 parserPlot.add_argument('-r', '--dpi', dest='image_resolution', type=int, help='Image resolution in DPI', default=300)
-parserPlot.add_argument('-nt', '--threads', dest='nt', type=int, help='Processor threads', default=0)
 
 parserAnalyze = subparsers.add_parser('analyze', description='Analyze spectra profiles')
 parserAnalyze.add_argument('-i', '--input', dest='input_tsv', type=str, help='Input spectra tsv', required=True)
@@ -74,19 +69,10 @@ parserAnalyze.add_argument('-o', '--output', dest='output_tsv', type=str, help='
 parserAnalyze.add_argument('-p', '--penalty', dest='penalty', type=float, help='Ruptures breakpoint penalty criterion', default=1000000)
 parserAnalyze.add_argument('-a', '--aligned', dest='is_aligned', action='store_true', help='Check for if input tsv comes from alignment or from sequence data', default=False)
 parserAnalyze.add_argument('-f', '--frequencies', dest='frequency', action='store_true', help='Process breaks by frequencies instead of raw counts', default=False)
-parserAnalyze.add_argument('-nt', '--threads', dest='nt', type=int, help='Processor threads', default=0)
 parserAnalyze.add_argument('-b', '--binned', dest='is_binned', action='store_true', help='If data already has breakpoints, ', default=False)
 
 args = parser.parse_args()
 
-scriptDirectory = os.path.dirname(__file__)
-if args.nt:
-    subparsersScript = f"/scripts/parallel/{args.subparsers}.py"
-    if not os.path.exists(f"{scriptDirectory}{subparsersScript}"):
-        logging.warning(f'No parallel-processing module for {args.subparsers}, using non-parallel module instead.')
-        subparsersScript = f"/scripts/{args.subparsers}.py"
-else:
-    subparsersScript = f"/scripts/{args.subparsers}.py"
-
+subparsersScript = f"/scripts/{args.subparsers}.py"
 script = importlib.import_module(moduleFromPath(subparsersScript))
 script.execute(args)

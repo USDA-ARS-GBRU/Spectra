@@ -31,9 +31,11 @@ def execute(args):
         exit()
 
     spectra = pd.read_csv(args.input_tsv, delimiter='\t')
-
+    indexLength = 4
+    spectraDimensions = len(spectra.columns) - indexLength
     if args.is_binned:
-        results = spectral.getBreakpointFrequencies(spectra, args.frequency)
+        spectraDimensions -= 1
+        results = spectral.getBreakpointFrequencies(spectra, args.frequency, index=indexLength, dim=spectraDimensions)
         if args.output_tsv:
             results.to_csv(args.output_tsv, index=False, sep='\t')
         else:
@@ -43,8 +45,8 @@ def execute(args):
         # penalty is temporarily locked to 1 or lower for frequency-based breakpoints
         if args.penalty > 1:
             args.penalty = 0.5
-        spectra = spectral.countToFrequency(spectra)
-    breakpoints = spectral.getBreakpoints(spectra, penalty=args.penalty)
+        spectra = spectral.countToFrequency(spectra, index=indexLength, dim=spectraDimensions)
+    breakpoints = spectral.getBreakpoints(spectra, penalty=args.penalty, index=indexLength, dim=spectraDimensions)
     spectra = spectral.applyBreakpoints(spectra, breakpoints)
 
     if args.output_tsv:

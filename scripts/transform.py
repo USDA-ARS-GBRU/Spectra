@@ -97,5 +97,8 @@ def execute(args):
     elif args.convert:
         spectra = spectral.countToFrequency(spectra)
 
+    if args.simplify:
+        spectra = spectral.simplify(spectra)
+
     if args.output:
         spectra.to_csv(args.output, sep='\t', index=False)

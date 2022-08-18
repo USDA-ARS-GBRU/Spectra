@@ -42,6 +42,25 @@ def execute(args):
             tsvWriter.writerows(rows)
 
             logging.info(f"Sequence {sequence} windows written to output file")
+
+    if args.complement:
+        logging.info(f"Initiating complement counting. This should take about the same amount of time as forward-count.")
+        with open(args.complement, 'w', newline='') as fileOutput:
+            tsvWriter = csv.writer(fileOutput, delimiter='\t')
+            bases = ["A", "C", "G", "T"]
+            queries = [f"{a}{b}{c}" for c in bases for b in bases for a in bases]
+
+            tsvWriter.writerow(["Library", "Sequence", "Start", "End"] + queries)
+
+            for sequence in sequences:
+                headers = sequence.split("_") if args.libraries else [os.path.basename(args.input_sequence), sequence]
+                toProcess = [[sequences[sequence][i:i + args.width].seq.complement().upper(), queries, i, i + args.width, headers]
+                             for i in range(0, len(sequences[sequence]) + args.spacing, args.spacing) if
+                             len(sequences[sequence][i:i + args.width].seq) > 0]
+                rows = map(spectral.windowCount, toProcess)
+                tsvWriter.writerows(rows)
+
+                logging.info(f"Sequence {sequence} windows written to output file")
     logging.info(f'Execution time in seconds: {time.time() - startTime}')
 
 
