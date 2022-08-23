@@ -28,6 +28,8 @@ parserCount.add_argument('-o', '--output', dest='output', type=str, help='Output
 parserCount.add_argument('-c', '--complement', dest='complement', type=str, help='Complement sequence file name. If set, calculates spectra for sequence complement (not reversed-complemented)', default=False)
 parserCount.add_argument('-l', '--libraries', dest='libraries', action='store_true', help='Sequence names include multiple libraries, prefixed by LIBRARY_', default=False)
 parserCount.add_argument('-p', '--proportions', dest='proportions', action='store_true', help='Return Spectra 3-mer proportions instead of raw counts', default=False)
+parserCount.add_argument('-m', '--memory', dest='memory', action='store_true', help='Use memory-conservation mode', default=False)
+
 
 parserQuery = subparsers.add_parser("query", description="Generate tsv file of spectra counts")
 parserQuery.add_argument('-i', '--input', dest='input_sequence', type=str, help='Input sequence file', required=True)

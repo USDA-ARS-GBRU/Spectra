@@ -18,14 +18,24 @@ def execute(args):
         exit()
 
     sequences = {}
-    try:
-        sequences = SeqIO.to_dict(SeqIO.parse(args.input_sequence, args.sequence_format))
-        if len(sequences.keys()) == 0:
-            logging.error(f"Sequence file '{args.input_sequence}' could not be loaded in format '{args.sequence_format}' or has incorrectly formatted sequences")
+    if args.memory:
+        try:
+            sequences = SeqIO.index(args.input_sequence, args.sequence_format)
+            if len(sequences.keys()) == 0:
+                logging.error(f"Sequence file '{args.input_sequence}' could not be loaded in format '{args.sequence_format}' or has incorrectly formatted sequences")
+                exit()
+        except ValueError:
+            logging.error(f"Sequence file '{args.input_sequence}' could not be loaded in format '{args.sequence_format}'")
             exit()
-    except ValueError:
-        logging.error(f"Sequence file '{args.input_sequence}' could not be loaded in format '{args.sequence_format}'")
-        exit()
+    else:
+        try:
+            sequences = SeqIO.to_dict(SeqIO.parse(args.input_sequence, args.sequence_format))
+            if len(sequences.keys()) == 0:
+                logging.error(f"Sequence file '{args.input_sequence}' could not be loaded in format '{args.sequence_format}' or has incorrectly formatted sequences")
+                exit()
+        except ValueError:
+            logging.error(f"Sequence file '{args.input_sequence}' could not be loaded in format '{args.sequence_format}'")
+            exit()
 
     with open(args.output, 'w', newline='') as fileOutput:
         tsvWriter = csv.writer(fileOutput, delimiter='\t')
