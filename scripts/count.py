@@ -8,10 +8,13 @@ from Bio import SeqIO
 import csv
 import logging
 import spectral
-
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.ERROR)
+logger = logging.getLogger()
 
 def execute(args):
+    if args.verbose:
+        logger.setLevel(logging.INFO)
+
     startTime = time.time()
     if not os.path.exists(args.input_sequence):
         logging.error(f"Couldn't find input file '{args.input_sequence}'")

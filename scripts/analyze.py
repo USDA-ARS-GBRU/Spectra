@@ -9,8 +9,8 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import spectral
-
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.ERROR)
+logger = logging.getLogger()
 
 # plots breakpoints calculated through ruptures
 def plotBreakpoints(sequence, data, dataAlgo):
@@ -26,6 +26,9 @@ def padWindows(spectra, tally, mer):
     return spectra
 
 def execute(args):
+    if args.verbose:
+        logger.setLevel(logging.INFO)
+
     if not os.path.exists(args.input_tsv):
         logging.error(f"Could not find input file '{args.input_tsv}'")
         exit()

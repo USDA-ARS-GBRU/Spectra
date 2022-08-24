@@ -13,7 +13,6 @@ def moduleFromPath(path):
     return path[1:].replace(".py", "").replace("/", ".")
 
 
-logging.basicConfig(level=logging.INFO)
 # TODO: add configure.ini for some hard-coded values like chi-square p-value
 # TODO: modify argparse to be a universal set of inputs
 parser = argparse.ArgumentParser(description='Spectra genetic profiling. Counting, processing, and visualization of 3-mers')
@@ -29,7 +28,7 @@ parserCount.add_argument('-c', '--complement', dest='complement', type=str, help
 parserCount.add_argument('-l', '--libraries', dest='libraries', action='store_true', help='Sequence names include multiple libraries, prefixed by LIBRARY_', default=False)
 parserCount.add_argument('-p', '--proportions', dest='proportions', action='store_true', help='Return Spectra 3-mer proportions instead of raw counts', default=False)
 parserCount.add_argument('-m', '--memory', dest='memory', action='store_true', help='Use memory-conservation mode', default=False)
-
+parserCount.add_argument('-v', '--verbose', dest='verbose', action='store_true', help='Verbose mode', default=False)
 
 parserQuery = subparsers.add_parser("query", description="Generate tsv file of spectra counts")
 parserQuery.add_argument('-i', '--input', dest='input_sequence', type=str, help='Input sequence file', required=True)
@@ -39,10 +38,14 @@ parserQuery.add_argument('-w', '--width', dest='width', type=int, help='Window w
 parserQuery.add_argument('-s', '--spacing', dest='spacing', type=int, help='Window spacing', default='3000')
 parserQuery.add_argument('-o', '--output', dest='output', type=str, help='Output tsv file', default='spectra_report.tsv')
 parserQuery.add_argument('-l', '--libraries', dest='libraries', action='store_true', help='Sequence names include multiple libraries, prefixed by LIBRARY_', default=False)
+parserQuery.add_argument('-v', '--verbose', dest='verbose', action='store_true', help='Verbose mode', default=False)
+
 
 parserCollate = subparsers.add_parser('collate', description='Collate multiple spectra output tsv into a multi-library tsv')
 parserCollate.add_argument('-i', '--input', dest='input_tsvs', help='Input spectra tsvs, separated by spaces', nargs='*', required=True)
 parserCollate.add_argument('-o', '--output', dest='output', help='Output spectra tsv', default='collated_spectra.tsv')
+parserCollate.add_argument('-v', '--verbose', dest='verbose', action='store_true', help='Verbose mode', default=False)
+
 
 parserTransform = subparsers.add_parser('transform', description='Transform spectra data for additional insight')
 parserTransform.add_argument('-i', '--input', dest='input_tsv', type=str, help='Input spectra tsv', required=True)
@@ -54,6 +57,8 @@ parserTransform.add_argument('-c', '--convert', dest='convert', action='store_tr
 parserTransform.add_argument('-s', '--window-resize', dest='resize_window', type=int, help='Resize windows to summarize N for every 1 window')
 parserTransform.add_argument('-v', '--verbose', dest='verbose', action='store_true', help='Print global frequencies', default=False)
 parserTransform.add_argument('-y', '--simplify', dest='simplify', action='store_true', help='Simplify forward and reverse-complement counts per window', default=False)
+parserTransform.add_argument('-p', '--print', dest='verbose', action='store_true', help='verbose mode', default=False)
+
 
 parserPlot = subparsers.add_parser('plot', description='Plot spectra profiles')
 parserPlot.add_argument('-i', '--input', dest='input_tsv', type=str, help='Input spectra tsv', required=True)
@@ -64,6 +69,8 @@ parserPlot.add_argument('-g', '--gff-file', dest='gff_file', type=str, help='Plo
 parserPlot.add_argument('-t', '--gff-tracks', dest='gff_tracks', type=str, help='Plot only annotations matching category Name1,Name2,Name3')
 parserPlot.add_argument('-l', '--legend', dest='show_legend', action='store_true', help='Draw legend', default=False)
 parserPlot.add_argument('-r', '--dpi', dest='image_resolution', type=int, help='Image resolution in DPI', default=300)
+parserPlot.add_argument('-v', '--verbose', dest='verbose', action='store_true', help='Verbose mode', default=False)
+
 
 parserAnalyze = subparsers.add_parser('analyze', description='Analyze spectra profiles')
 parserAnalyze.add_argument('-i', '--input', dest='input_tsv', type=str, help='Input spectra tsv', required=True)
@@ -72,6 +79,8 @@ parserAnalyze.add_argument('-p', '--penalty', dest='penalty', type=float, help='
 parserAnalyze.add_argument('-a', '--aligned', dest='is_aligned', action='store_true', help='Check for if input tsv comes from alignment or from sequence data', default=False)
 parserAnalyze.add_argument('-f', '--frequencies', dest='frequency', action='store_true', help='Process breaks by frequencies instead of raw counts', default=False)
 parserAnalyze.add_argument('-b', '--binned', dest='is_binned', action='store_true', help='If data already has breakpoints, ', default=False)
+parserAnalyze.add_argument('-v', '--verbose', dest='verbose', action='store_true', help='Verbose mode', default=False)
+
 
 args = parser.parse_args()
 

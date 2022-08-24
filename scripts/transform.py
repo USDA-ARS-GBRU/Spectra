@@ -5,8 +5,9 @@ import scipy.stats as sp
 import pandas as pd
 import logging
 import spectral
+logging.basicConfig(level=logging.ERROR)
+logger = logging.getLogger()
 
-logging.basicConfig(level=logging.INFO)
 
 def groupByRows(group, rows, dim=64):
     subGroups = group.groupby(group.index // rows)
@@ -56,6 +57,9 @@ def reduceFrequencies(spectra, frequencies):
     return spectra
 
 def execute(args):
+    if args.verbose:
+        logger.setLevel(logging.INFO)
+
     if not os.path.exists(args.input_tsv):
         logging.error(f"Could not find input file '{args.input_tsv}'")
         exit()
@@ -82,7 +86,7 @@ def execute(args):
     if args.weighted_filter or args.weighted_normalization or args.verbose:
         frequencies = spectral.getGlobalFrequencies(spectra)
 
-    if args.verbose:
+    if args.print:
         logging.info('Reported frequencies (JSON/pydict):')
         logging.info(frequencies)
 

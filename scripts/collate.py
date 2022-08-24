@@ -3,10 +3,13 @@
 import os
 import csv
 import logging
-
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.ERROR)
+logger = logging.getLogger()
 
 def execute(args):
+    if args.verbose:
+        logger.setLevel(logging.INFO)
+
     with open(args.output, 'w') as outputFile:
         headers = 0
         tsvWriter = csv.writer(outputFile, delimiter='\t')
