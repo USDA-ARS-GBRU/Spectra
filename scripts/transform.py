@@ -70,7 +70,6 @@ def execute(args):
         if targetFactor > 1:
             spectraGroups = spectra.groupby(['Library', 'Sequence'])
             spectra = pd.DataFrame()
-            newID = 0
             for group in spectraGroups:
                 for index in range(0, len(group[1]), targetFactor):
                     subset = group[1].iloc[index:index+targetFactor]
@@ -80,7 +79,6 @@ def execute(args):
                     newSubset['Start'][0] = subset['Start'].min()
                     newSubset['End'][0] = subset['End'].max()
                     spectra = pd.concat([spectra, newSubset], ignore_index=True)
-                    newID += 1
         spectra.reindex()
     frequencies = {}
     if args.weighted_filter or args.weighted_normalization or args.verbose:

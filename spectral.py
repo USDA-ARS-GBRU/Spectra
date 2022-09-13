@@ -1,4 +1,3 @@
-import pandas
 import ruptures as rpt
 import pandas as pd
 import numpy as np
@@ -16,13 +15,18 @@ def simplify(spectra, index=4, dim=64):
         if query not in list(simpleQueries.values()) or rc(query) not in list(simpleQueries.keys()):
             simpleQueries[query] = rc(query)
     for mer in simpleQueries:
-        spectra[mer] += spectra[simpleQueries[mer]]
-    return spectra.drop(columns=list(simpleQueries.values()))
+        if simpleQueries[mer] != mer:
+            spectra[mer] += spectra[simpleQueries[mer]]
+    return spectra.drop(columns=[simpleQueries[a] for a in simpleQueries if a != simpleQueries[a]])
 
 # Counts the spectra of a sequence
 def windowCount(seq):
     return seq[4] + [seq[2] + 1, seq[2] + len(seq[0]) if seq[2] + len(seq[0]) < seq[3] else seq[3]] + [
                seq[0].count_overlap(a) for a in seq[1]]
+
+def windowCountNoOverlap(seq):
+    return seq[4] + [seq[2] + 1, seq[2] + len(seq[0]) if seq[2] + len(seq[0]) < seq[3] else seq[3]] + [
+        seq[0].count(a) for a in seq[1]]
 
 # Calculate breakpoints from spectra
 # For 64 literal counts, a penalty of 1,000,000 is ideal, but for frequencies a penalty of 0.5 is ideal
@@ -44,6 +48,7 @@ def applyBreakpoints(spectra, breakpoints):
     for bkp in breakpoints:
         breakCount = 0
         index = 1
+        breakName = ''
         for bkpStart in bkp[1]:
             breakName = f'{bkp[0][0]}_{bkp[0][1]}_{breakCount}'
             indices = list(spectra.loc[(spectra['Library'] == bkp[0][0]) & (spectra['Sequence'] == bkp[0][1]) & (
@@ -65,14 +70,14 @@ def getBreakpointFrequencies(spectra, frequency, index=4, dim=64):
     return outputs
 
 # Transform spectra counts to spectra frequencies
-def countToFrequency(spectra, index=4, dim=64, len=3):
+def countToFrequency(spectra, index=4, dim=64, merLen=3):
     for row in spectra.iterrows():
-        denominator = row[1]['End'] - row[1]['Start'] - (len - 2)
+        denominator = row[1]['End'] - row[1]['Start'] - (merLen - 2)
         spectra.iloc[row[0], index:index + dim] = np.array(spectra.iloc[row[0], index:index + dim]) / denominator
     return spectra
 
 # Transform spectra counts to spectra frequencies
-def frequencyToCount(spectra, index=4, dim=64, len=3):
+def frequencyToCount(spectra, index=4, dim=64, merLen=3):
     return
 
 # Calculate global frequencies across spectra

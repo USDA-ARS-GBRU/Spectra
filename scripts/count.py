@@ -8,6 +8,7 @@ from Bio import SeqIO
 import csv
 import logging
 import spectral
+import pandas as pd
 logging.basicConfig(level=logging.ERROR)
 logger = logging.getLogger()
 
@@ -39,41 +40,25 @@ def execute(args):
         except ValueError:
             logging.error(f"Sequence file '{args.input_sequence}' could not be loaded in format '{args.sequence_format}'")
             exit()
+    bases = ["A", "C", "G", "T"]
+    queries = [f"{a}{b}{c}" for c in bases for b in bases for a in bases]
 
     with open(args.output, 'w', newline='') as fileOutput:
         tsvWriter = csv.writer(fileOutput, delimiter='\t')
-
-        bases = ["A", "C", "G", "T"]
-        queries = [f"{a}{b}{c}" for c in bases for b in bases for a in bases]
-
         tsvWriter.writerow(["Library", "Sequence", "Start", "End"] + queries)
+        callableProcess = spectral.windowCount if args.overlap else spectral.windowCountNoOverlap
 
         for sequence in sequences:
             headers = sequence.split("_") if args.libraries else [os.path.basename(args.input_sequence), sequence]
             toProcess = [[sequences[sequence][i:i+args.width].seq.upper(), queries, i, i + args.width, headers] for i in range(0, len(sequences[sequence])+args.spacing, args.spacing) if len(sequences[sequence][i:i+args.width].seq) > 0]
-            rows = map(spectral.windowCount, toProcess)
+            rows = map(callableProcess, toProcess)
             tsvWriter.writerows(rows)
-
             logging.info(f"Sequence {sequence} windows written to output file")
 
     if args.complement:
-        logging.info(f"Initiating complement counting. This should take about the same amount of time as forward-count.")
-        with open(args.complement, 'w', newline='') as fileOutput:
-            tsvWriter = csv.writer(fileOutput, delimiter='\t')
-            bases = ["A", "C", "G", "T"]
-            queries = [f"{a}{b}{c}" for c in bases for b in bases for a in bases]
+        logging.info("Simplifying forward and r-c counts")
+        spectra = pd.read_csv(args.output, delimiter='\t')
+        spectra = spectral.simplify(spectra, dim=len(queries))
+        spectra.to_csv(args.output, sep='\t', index=False)
 
-            tsvWriter.writerow(["Library", "Sequence", "Start", "End"] + queries)
-
-            for sequence in sequences:
-                headers = sequence.split("_") if args.libraries else [os.path.basename(args.input_sequence), sequence]
-                toProcess = [[sequences[sequence][i:i + args.width].seq.complement().upper(), queries, i, i + args.width, headers]
-                             for i in range(0, len(sequences[sequence]) + args.spacing, args.spacing) if
-                             len(sequences[sequence][i:i + args.width].seq) > 0]
-                rows = map(spectral.windowCount, toProcess)
-                tsvWriter.writerows(rows)
-
-                logging.info(f"Sequence {sequence} windows written to output file")
     logging.info(f'Execution time in seconds: {time.time() - startTime}')
-
-
