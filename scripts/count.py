@@ -57,9 +57,7 @@ def execute(args):
             if args.memory or sequenceLength >= maxSize:
                 logging.info(f"Sequence {sequence} is large. Breaking into smaller segments")
                 indices = range(0, sequenceLength, maxSize)
-                print(indices)
                 for sequenceIndex in indices:
-                    print(sequenceIndex)
                     toProcess = [[sequences[sequence][i:i + args.width].seq.upper(), queries, i, i + args.width, headers] for i in range(sequenceIndex, sequenceIndex + maxSize, args.spacing) if len(sequences[sequence][i:i + args.width]) > 0]
                     rows = map(callableProcess, toProcess)
                     tsvWriter.writerows(rows)
