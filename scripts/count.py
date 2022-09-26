@@ -13,6 +13,8 @@ logging.basicConfig(level=logging.ERROR)
 logger = logging.getLogger()
 
 def execute(args):
+    maxSize = 9000000 if 9000000 % args.spacing != 0 else (9000000 // args.spacing) * args.spacing
+
     if args.verbose:
         logger.setLevel(logging.INFO)
 
@@ -50,10 +52,24 @@ def execute(args):
 
         for sequence in sequences:
             headers = sequence.split("_") if args.libraries else [os.path.basename(args.input_sequence), sequence]
-            toProcess = [[sequences[sequence][i:i+args.width].seq.upper(), queries, i, i + args.width, headers] for i in range(0, len(sequences[sequence])+args.spacing, args.spacing) if len(sequences[sequence][i:i+args.width].seq) > 0]
-            rows = map(callableProcess, toProcess)
-            tsvWriter.writerows(rows)
-            logging.info(f"Sequence {sequence} windows written to output file")
+            # temp edits start
+            sequenceLength = len(sequences[sequence])
+            if args.memory or sequenceLength >= maxSize:
+                logging.info(f"Sequence {sequence} is large. Breaking into smaller segments")
+                indices = range(0, sequenceLength, maxSize)
+                print(indices)
+                for sequenceIndex in indices:
+                    print(sequenceIndex)
+                    toProcess = [[sequences[sequence][i:i + args.width].seq.upper(), queries, i, i + args.width, headers] for i in range(sequenceIndex, sequenceIndex + maxSize, args.spacing) if len(sequences[sequence][i:i + args.width]) > 0]
+                    rows = map(callableProcess, toProcess)
+                    tsvWriter.writerows(rows)
+                logging.info(f"Sequence {sequence} windows written to output file")
+            # temp edits end
+            else:
+                toProcess = [[sequences[sequence][i:i+args.width].seq.upper(), queries, i, i + args.width, headers] for i in range(0, sequenceLength+args.spacing, args.spacing) if len(sequences[sequence][i:i+args.width]) > 0]
+                rows = map(callableProcess, toProcess)
+                tsvWriter.writerows(rows)
+                logging.info(f"Sequence {sequence} windows written to output file")
 
     if args.complement:
         logging.info("Simplifying forward and r-c counts")
