@@ -16,7 +16,7 @@ spectraPlot = function(values, tripletColors, legend=FALSE, facet=FALSE, frequen
 	if(frequencies){
 		p = ggplot() + geom_area(data=values, aes(fill=name, x=(End+Start)/2, y=value), stat="identity", position="stack")
 	}else{
-		p = ggplot() + geom_area(data=values, aes(fill=name, x=(End+Start)/2, y=value/(End-Start+1)), stat="identity", position="stack")
+		p = ggplot() + geom_area(data=values, aes(fill=name, x=(End+Start)/2, y=value/(End-Start+1-length(name))), stat="identity", position="stack")
 	}
 	if(ylims){
 		p = p + scale_y_continuous(limits=c(0,1), expand=c(0, 0))
@@ -156,7 +156,6 @@ if(length(lib.names)>1 && !is.null(opt$gffFile)){
 values = values %>% tidyr::pivot_longer(cols=starts_with(c("A","C","G","T")))
 tripletNames=names(table(values$name))
 tripletColors=sapply(tripletNames,triplerColor)
-
 # write multiple plots in a single frame if sequence names are the same
 for(seq in seq.names){
 	seq.filename = paste0(output_file[1], '_', seq, '.', output_file[2])

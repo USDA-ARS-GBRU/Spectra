@@ -8,7 +8,17 @@ def rc(sequence):
     sequence = Seq.Seq(sequence)
     return str(sequence.reverse_complement())
 
-#
+# Validate takes an input df, and returns a tuple of (0) approved spectra descriptor fields and (1) triplet or query names
+def validate(df):
+    columns = df.columns
+    validatedDescriptors = []
+    for descriptor in ['Library', 'Sequence', 'Bin', 'Length', 'Start', 'End']:
+        if descriptor in columns:
+            validatedDescriptors.append(descriptor)
+    validatedNames = [a for a in columns if a[0] in ['A', 'C', 'G', 'T']]
+    return validatedDescriptors, validatedNames
+
+# Simplify bi-directional frequencies/counts to unidirectional
 def simplify(spectra, index=4, dim=64):
     simpleQueries = {}
     for query in list(spectra.columns)[index:index + dim]:

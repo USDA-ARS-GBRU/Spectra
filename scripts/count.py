@@ -52,7 +52,6 @@ def execute(args):
 
         for sequence in sequences:
             headers = sequence.split("_") if args.libraries else [os.path.basename(args.input_sequence), sequence]
-            # temp edits start
             sequenceLength = len(sequences[sequence])
             if args.memory or sequenceLength >= maxSize:
                 logging.info(f"Sequence {sequence} is large. Breaking into smaller segments")
@@ -62,7 +61,6 @@ def execute(args):
                     rows = map(callableProcess, toProcess)
                     tsvWriter.writerows(rows)
                 logging.info(f"Sequence {sequence} windows written to output file")
-            # temp edits end
             else:
                 toProcess = [[sequences[sequence][i:i+args.width].seq.upper(), queries, i, i + args.width, headers] for i in range(0, sequenceLength+args.spacing, args.spacing) if len(sequences[sequence][i:i+args.width]) > 0]
                 rows = map(callableProcess, toProcess)

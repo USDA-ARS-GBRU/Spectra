@@ -2,14 +2,18 @@
 
 import os
 import pandas as pd
+import plotnine
 from plotnine import ggplot, aes, geom_area, ggsave, theme, geom_segment, scale_y_continuous, scale_x_continuous, xlab, ylab, theme_bw, scale_fill_manual, themes
+from plotnine import geoms
 import logging
+import spectral
 
 logging.basicConfig(level=logging.INFO)
 
 def colorizeMer(mer):
-    colors = {"A": "DD", "G": "9F", "C": "60", "T": "11"}
-    return "#" + colors[mer[0]] + colors[mer[1]] + colors[mer[2]]
+    #colors = {"A": "DD", "G": "9F", "C": "60", "T": "11"}
+    colors = {"A": "C6", "C": "6C", "G": "3C", "T": "10"}
+    return "#" + colors[mer[2]] + colors[mer[1]] + colors[mer[0]]
 
 #('-i', '--input', dest='input_tsv', type=str, help='Input spectra tsv', required=True)
 #('-o', '--output', dest='output', type=str, help='Output spectra plot', default='spectra_plot.png')
@@ -25,29 +29,43 @@ def execute(args):
         logging.error(f"Could not find input file '{args.input_tsv}'")
         exit()
     spectraPanda = pd.read_csv(args.input_tsv, sep='\t')
-    plotColors = [colorizeMer(a) for a in spectraPanda.columns[-64:]]
-    library = spectraPanda.Library.unique()[0]
-    libraryPanda = spectraPanda[spectraPanda['Library'] == library]
-    sequence = libraryPanda.Sequence.unique()[1]
-    sequencePanda = libraryPanda[libraryPanda['Sequence'] == sequence]
+    plotColors = [colorizeMer(a) for a in spectraPanda.columns if a[0] in ['A', 'C', 'G', 'T']]
 
-    sequencePanda = sequencePanda.melt(id_vars=['Library', 'Sequence', 'Start', 'End'], value_vars=sequencePanda.columns[-64:])
+    validation = spectral.validate(spectraPanda)
+    if args.sequence:
+        sequences = args.sequence.split(',')
+        spectraPanda = spectraPanda.loc[spectraPanda['Sequence'].isin(sequences)]
 
-    # TODO: add boolean check if these are counts or frequencies
-    windowSize = sequencePanda['End'][0] - sequencePanda['Start'][0] - 1
-    subplotSize = (min(sequencePanda['Start']), max(sequencePanda['End']))
+    if args.zoom_width:
+        zoom = args.zoom_width.split(',')
+        spectraPanda = spectraPanda.loc[spectraPanda['Start'] >= int(zoom[0])]
+        spectraPanda = spectraPanda.loc[spectraPanda['End'] <= int(zoom[1])]
 
-    plot = ggplot(data=sequencePanda)
-    plot += aes(fill='variable', x=(sequencePanda['End'] + sequencePanda['Start']) / 2, y=sequencePanda['value'] / windowSize)
-    plot += geom_area(stat="identity", position="stack")
-    plot += scale_fill_manual(values=plotColors)
-    plot += scale_y_continuous(limits=(0, 1), expand=(0, 0))
-    plot += scale_x_continuous(limits=subplotSize, expand=(0, 0))
-    plot += xlab("Window Position (nucleotide)")
-    plot += ylab("Proportion")
-    plot += theme_bw()
-    plot += theme(axis_title_x=themes.element_text(size=6), axis_title_y=themes.element_text(size=6), legend_text=themes.element_text(size=5), legend_key_size=5, legend_spacing=-3, axis_text_x=themes.element_text(angle=0, vjust=0.5), line=themes.element_blank(), axis_ticks=themes.element_line(), legend_title=themes.element_blank())
-    ggsave(plot, filename=library+"_"+sequence+".png", width=12, height=4, units="in", dpi=args.image_resolution, limitsize=False, verbose=False)
+    spectraGroups = spectraPanda.groupby(['Sequence'])
+    for group in spectraGroups:
+        library = group[1].Library.unique()
+        if len(library) > 1:
+            pass
+        else:
+            library = library[0]
+            sequence = group[1].Sequence.unique()[0]
+
+            sequencePanda = group[1].melt(id_vars=validation[0], value_vars=validation[1])
+            # TODO: add boolean check if these are counts or frequencies
+            windowSize = sequencePanda['End'][0] - sequencePanda['Start'][0] - 1
+            subplotSize = (min(sequencePanda['Start']), max(sequencePanda['End']))
+
+            plot = ggplot(data=sequencePanda)
+            plot += aes(fill='variable', x=(sequencePanda['End'] + sequencePanda['Start']) / 2, y=sequencePanda['value'] / (sequencePanda['End']-sequencePanda['Start']+1))
+            plot += geom_area(mapping=aes(), stat="identity", position=plotnine.position_stack, outline_type='lower')
+            plot += scale_fill_manual(values=plotColors)
+            plot += scale_y_continuous(limits=(0, 1), expand=(0, 0))
+            plot += scale_x_continuous(limits=subplotSize, expand=(0, 0))
+            plot += xlab("Window Position (nucleotide)")
+            plot += ylab("Proportion")
+            plot += theme_bw()
+            plot += theme(axis_title_x=themes.element_text(size=6), axis_title_y=themes.element_text(size=6), legend_text=themes.element_text(size=5), legend_key_size=5, legend_spacing=-3, axis_text_x=themes.element_text(angle=0, vjust=0.5), line=themes.element_blank(), axis_ticks=themes.element_line(), legend_title=themes.element_blank())
+            ggsave(plot, filename=f"{library}_{sequence}.png", width=12, height=4, units="in", dpi=args.image_resolution, limitsize=False, verbose=False)
 
     # TODO: Plot window size needs to be wider
     # TODO: Fix DPI
@@ -56,20 +74,3 @@ def execute(args):
     # TODO: Change values to frequencies instead of counts
     # TODO: Legend needs to be optional and moved
     # TODO: Fix graph padding/margin
-
-
-
-    #seqPlot = sequencePanda.plot.area(x='Start', y=list(sequencePanda.columns)[-64:], stacked=True, figsize=(args.image_resolution / 15, args.image_resolution / 40))
-    #outPlot = seqPlot.get_figure()
-    #outPlot.savefig(library+"_"+sequence+".png")
-    #plt.close('all')
-    # for library in spectraPanda.Library.unique():
-    #     libraryPanda = spectraPanda[spectraPanda['Library'] == library]
-    #     for sequence in libraryPanda.Sequence.unique():
-    #         sequencePanda = libraryPanda[libraryPanda['Sequence'] == sequence]
-    #         sequencePanda = sequencePanda.melt(id_vars=['Library', 'Sequence', 'Start', 'End'], value_vars=sequencePanda.head()[-64:])
-    #         seqPlot = sequencePanda.plot.area(x='Start', y='value', stacked=True)
-    #         outPlot = seqPlot.get_figure()
-    #         outPlot.savefig(library+"_"+sequence+".png")
-    #         outPlot.close()
-

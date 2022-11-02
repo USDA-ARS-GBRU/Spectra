@@ -13,6 +13,8 @@ logging.basicConfig(level=logging.ERROR)
 logger = logging.getLogger()
 
 def execute(args):
+    maxSize = 9000000 if 9000000 % args.spacing != 0 else (9000000 // args.spacing) * args.spacing
+
     if args.verbose:
         logger.setLevel(logging.INFO)
 
@@ -26,7 +28,6 @@ def execute(args):
     else:
         queries = [args.query]
     sequences = {}
-
     if args.memory:
         try:
             sequences = SeqIO.index(args.input_sequence, args.sequence_format)
