@@ -24,9 +24,9 @@ def execute(args):
         exit()
         
     if "," in args.query:
-        queries = args.query.split(',')
+        queries = [a.upper() for a in args.query.split(',')]
     else:
-        queries = [args.query]
+        queries = args.query.upper()
     sequences = {}
     if args.memory:
         try:

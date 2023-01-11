@@ -23,9 +23,10 @@ spectraPlot = function(values, tripletColors, legend=FALSE, facet=FALSE, frequen
 	}else{
 		p = p + scale_y_continuous(expand=c(0, 0))
 	}
-	
+			#scale_fill_manual(values=tripletColors) +
+
 	p = p +
-		scale_fill_manual(values=tripletColors) +
+		scale_fill_manual(values=c('#cc3300','#0033cc','#00cc33','#cc0033')) +
 		scale_x_continuous(
 			limits=c(min(values$Start), max(values$End)),
 			breaks=waiver(),
@@ -59,7 +60,7 @@ spectraPlot = function(values, tripletColors, legend=FALSE, facet=FALSE, frequen
 
 triplerColor = function(triplet){
 	bases = c("A","C","G","T")
-	colors = c("DD","9F","60","11")
+	colors = c("CC","9F","60","11")
 	#colors = c("CC","99","66","33")
 	color = paste0("#",colors[which(substr(triplet,1,1) == bases)],colors[which(substr(triplet,2,2) == bases)],colors[which(substr(triplet,3,3) == bases)])
 	if(nchar(color)<=3){
