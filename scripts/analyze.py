@@ -49,7 +49,7 @@ def execute(args):
         if args.penalty > 1:
             args.penalty = 0.5
         spectra = spectral.countToFrequency(spectra, index=indexLength, dim=spectraDimensions)
-    breakpoints = spectral.getBreakpoints(spectra, penalty=args.penalty, index=indexLength, dim=spectraDimensions)
+    breakpoints = spectral.getBreakpoints(spectra, penalty=args.penalty, min_size=args.size, index=indexLength, dim=spectraDimensions)
     spectra = spectral.applyBreakpoints(spectra, breakpoints)
 
     if args.output_tsv:

@@ -60,7 +60,7 @@ def applyBreakpoints(spectra, breakpoints):
         index = 1
         breakName = ''
         for bkpStart in bkp[1]:
-            breakName = f'{bkp[0][0]}_{bkp[0][1]}_{breakCount}'
+            breakName = f'{bkp[0][0]}_{bkp[0][1]}_{breakCount:02d}'
             indices = list(spectra.loc[(spectra['Library'] == bkp[0][0]) & (spectra['Sequence'] == bkp[0][1]) & (
                     spectra['Start'] >= index) & (spectra['End'] < bkpStart)].index)
             spectra.loc[indices, 'Bin'] = breakName
@@ -101,3 +101,12 @@ def getGlobalFrequencies(spectra, frequency=False, index=4, dim=64):
 # Reduce frequencies from a given set of global frequencies
 def reduceFrequencies():
     return
+
+# needs work. Currently does nothing
+def spectraRC(spectra, index=4, dim=64, merLen=3):
+    newSpectra = spectra
+    mers = list(spectra.columns)[index:index + dim]
+    for mer in mers:
+        #newSpectra.loc[rc(mer)] = spectra[mer]
+        newSpectra[rc(mer)].replace(spectra[mer])
+    return newSpectra
