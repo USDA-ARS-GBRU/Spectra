@@ -13,8 +13,6 @@ import ruptures as rpt
 import logging
 import os
 import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
 import spectral
 logging.basicConfig(level=logging.ERROR)
 logger = logging.getLogger()

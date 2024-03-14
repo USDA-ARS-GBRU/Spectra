@@ -12,7 +12,7 @@ def rc(sequence):
 def validate(df):
     columns = df.columns
     validatedDescriptors = []
-    for descriptor in ['Library', 'Sequence', 'Bin', 'Length', 'Start', 'End']:
+    for descriptor in ['Library', 'Sequence', 'Block', 'Length', 'Start', 'End']:
         if descriptor in columns:
             validatedDescriptors.append(descriptor)
     validatedNames = [a for a in columns if a[0] in ['A', 'C', 'G', 'T']]
@@ -59,20 +59,25 @@ def applyBreakpoints(spectra, breakpoints):
         breakCount = 0
         index = 1
         breakName = ''
-        for bkpStart in bkp[1]:
-            breakName = f'{bkp[0][0]}_{bkp[0][1]}_{breakCount:02d}'
+        if bkp[1]:
+            for bkpStart in bkp[1]:
+                breakName = f'{bkp[0][0]}_{bkp[0][1]}_{breakCount:02d}'
+                indices = list(spectra.loc[(spectra['Library'] == bkp[0][0]) & (spectra['Sequence'] == bkp[0][1]) & (
+                        spectra['Start'] >= index) & (spectra['End'] < bkpStart)].index)
+                spectra.loc[indices, 'Block'] = breakName
+                index = bkpStart
+                breakCount += 1
             indices = list(spectra.loc[(spectra['Library'] == bkp[0][0]) & (spectra['Sequence'] == bkp[0][1]) & (
-                    spectra['Start'] >= index) & (spectra['End'] < bkpStart)].index)
-            spectra.loc[indices, 'Bin'] = breakName
-            index = bkpStart
-            breakCount += 1
-        indices = list(spectra.loc[(spectra['Library'] == bkp[0][0]) & (spectra['Sequence'] == bkp[0][1]) & (
-                    spectra['Start'] >= index)].index)
-        spectra.loc[indices, 'Bin'] = breakName
+                        spectra['Start'] >= index)].index)
+            spectra.loc[indices, 'Block'] = breakName
+        else:
+            breakName = f'{bkp[0][0]}_{bkp[0][1]}_{breakCount:02d}'
+            indices = list(spectra.loc[(spectra['Library'] == bkp[0][0]) & (spectra['Sequence'] == bkp[0][1])].index)
+            spectra.loc[indices, 'Block'] = breakName
     return spectra
 
 def getBreakpointFrequencies(spectra, frequency, index=4, dim=64):
-    spectra = spectra.groupby(['Bin', 'Library', 'Sequence'])
+    spectra = spectra.groupby(['Block', 'Library', 'Sequence'])
     outputs = pd.DataFrame()
     for group in spectra:
         frequencies = getGlobalFrequencies(group[1], frequency, index=index, dim=dim)

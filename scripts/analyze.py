@@ -6,7 +6,6 @@ import ruptures as rpt
 import logging
 import os
 import pandas as pd
-import numpy as np
 import matplotlib.pyplot as plt
 import spectral
 logging.basicConfig(level=logging.ERROR)
@@ -36,7 +35,7 @@ def execute(args):
     spectra = pd.read_csv(args.input_tsv, delimiter='\t')
     indexLength = 4
     spectraDimensions = len(spectra.columns) - indexLength
-    if args.is_binned:
+    if args.is_blocked:
         spectraDimensions -= 1
         results = spectral.getBreakpointFrequencies(spectra, args.frequency, index=indexLength, dim=spectraDimensions)
         if args.output_tsv:
