@@ -7,10 +7,8 @@ suppressPackageStartupMessages(library(ggplot2))
 suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(tidyr))
 suppressPackageStartupMessages(library(optparse))
-suppressPackageStartupMessages(library(egg))
 
-spectraPlot = function(values, tripletColors, legend=FALSE, facet=FALSE, frequencies=FALSE, ylims=TRUE, range, scale,axes, paletteNames){
-	#values$name = factor(values$name,levels=paletteNames)
+spectraPlot = function(values, tripletColors, legend=FALSE, facet=FALSE, frequencies=FALSE, ylims=TRUE, range, scale, axes, paletteNames){
 
 	if(frequencies){
 		p = ggplot() + geom_area(data=values, aes(fill=name, x=(End+Start)/2, y=value), stat="identity", position="stack")
@@ -65,7 +63,7 @@ spectraPlot = function(values, tripletColors, legend=FALSE, facet=FALSE, frequen
 	if(!legend){
 		p = p + theme(legend.position = "none")
 	}
-	if(axes){
+	if(!axes){
 		p = p +
 		theme(
 			axis.text.x = element_blank(),
@@ -79,9 +77,9 @@ spectraPlot = function(values, tripletColors, legend=FALSE, facet=FALSE, frequen
 	return(p)
 }
 
-circularPlot = function(values, tripletColors, legend=FALSE, frequencies=FALSE, ylims=TRUE, axes=TRUE, paletteNames, limit=0){
-	#values = values %>% arrange(Sequence)
-	
+circularPlot = function(values, tripletColors, legend=FALSE, frequencies=FALSE, ylims=TRUE, axes=FALSE, paletteNames, limit=0){
+	suppressPackageStartupMessages(library(egg))
+
 	#definable sequence spacer size
 	spacerLength = 1000000
 	spacerValues = rbind(
@@ -89,7 +87,6 @@ circularPlot = function(values, tripletColors, legend=FALSE, frequencies=FALSE, 
 		values %>% filter(End==min(values$End),Sequence==values$Sequence[1]) %>% mutate(Start=1001, End=spacerLength-1000, value=0, Sequence='Spacer'),
 		values %>% filter(End==min(values$End),Sequence==values$Sequence[1]) %>% mutate(Start=spacerLength-999, End=spacerLength, value=0, Sequence='Spacer')
 	)
-	#spacerValues = values %>% filter(End==min(values$End),Sequence==values$Sequence[1]) %>% mutate(Start=1, End=spacerLength, value=0, Sequence='Spacer')
 	
 	# modify sequence positions to be absolute
 	sequences_names=names(table(values$Sequence))
@@ -155,7 +152,7 @@ circularPlot = function(values, tripletColors, legend=FALSE, frequencies=FALSE, 
 	if(!legend){
 		p = p + theme(legend.position = "none")
 	}
-	if(axes){
+	if(!axes){
 		p = p +
 		theme(
 			axis.text.x = element_blank(),
@@ -193,7 +190,7 @@ option_list <- list(
 	make_option(c("-w", "--window-size"), type="character", default=NULL, help="Generate plot only from the closest intervals of \"N,M\". Otherwise generate a plot for all positions [default %default]", dest="window_size"),
 	make_option(c("-s", "--sequence"), type="character", default=NULL, help="Generate plot only from the sequences with names in \"A,B,C\" or by regular expression if -e flag specified. Otherwise generate a plot for each sequence id [default %default]", dest="sequences"),
 	make_option(c("-n", "--libraries"), type="character", default=NULL, help="Generate plot only from the libraries with names in \"A,B,C\" or by regular expression if -e flag specified. Otherwise generate a plot for each library id [default %default]", dest="libraries"),
-	make_option(c("-e", "--regex"), action="store_true", default=FALSE, help="Uses regex to subset sequnece and library names [default %default]", dest="regex"),
+	make_option(c("-e", "--regex"), action="store_true", default=FALSE, help="Uses regex to subset sequence and library names [default %default]", dest="regex"),
 	make_option(c("-u", "--graphlength"), type="numeric", default=0, help="Designate the length of sequence to plot (for partial graphs in circular plot). 0 = No limit [default %default]", dest="length"),
 	make_option(c("-g", "--gff-file"), type="character", default=NULL, help="Generate plot of overlapping gene annotations from supplied gff. [default %default]", dest="gffFile"),
 	make_option(c("-t", "--gff-tracks"), type="character", default=NULL, help="Curate which gff types to use in types \"A,B,C\". [default %default]", dest="gffTracks"),
@@ -204,7 +201,7 @@ option_list <- list(
 	make_option(c("-f","--freq"), action="store_true", default=FALSE, help="Data already transformed to frequencies [default %default]", dest="frequencies"),
 	make_option(c("-y","--ylims"), action="store_false", default=TRUE, help="Limit results to y-axes between 0,1 [default %default]", dest="ylims"),
 	make_option(c("-x","--scale"), type="numeric", default=1, help="Scale of x-axis. Plot each n (mb) over 1 inch [default %default]", dest="scale"),
-	make_option(c("-a","--axes"), action="store_true", default=FALSE, help="Display axes text [default %default]", dest="axes"),
+	make_option(c("-a","--axes"), action="store_false", default=TRUE, help="Display axes text [default %default]", dest="axes"),
 	make_option(c("-k","--keep-scale"), action="store_true", default=FALSE, help="Incorporate scale [default %default]", dest="keep"),
 	make_option(c("-p","--palette"), type="character", default='base', help="Spectra color palette. Available palettes: base, dual [default %default]", dest="palette"),
 	make_option(c("-c","--circular"), action="store_true", default=FALSE, help="Invoke a circular, full genome plot [default %default]", dest="circular")
@@ -303,20 +300,16 @@ values = values %>% tidyr::pivot_longer(cols=starts_with(c("A","C","G","T")))
 
 # Color and Palette building
 paletteOrderDF = read.csv(paste0(dirname(scriptLocation),"/includes/paletteMatrix_base.csv"))
-paletteColorDF = read.csv(paste0(dirname(scriptLocation),"/includes/paletteMatrix_base4_Color.csv"))
 
 tripletNames=names(table(values$name))
 paletteNames = c()
-paletteColors = c()
 for(colNum in 1:ncol(paletteOrderDF)){
 	for(rowNum in 1:nrow(paletteOrderDF)){
 		if(paletteOrderDF[rowNum,colNum] %in% tripletNames){
 			paletteNames = c(paletteNames,paletteOrderDF[rowNum,colNum][1])
-			paletteColors = c(paletteColors,paletteColorDF[rowNum,colNum][1])
 		}
 	}
 }
-
 
 tripletColors=sapply(paletteNames,paletteBuilder)
 
@@ -341,7 +334,7 @@ if(opt$circular){
 			}else{
 				temp.length = temp.range + 0.5
 			}
-			if(opt$axes){
+			if(!opt$axes){
 				temp.length = temp.length - 0.5
 			}
 		}else{
@@ -364,9 +357,6 @@ if(opt$circular){
 		if(!is.null(trf)){
 			if(nrow(trf%>%filter(Sequence==seq))>0){
 				p = p + geom_line(data=trf%>%filter(Sequence==seq), aes(x=(End+Start)/2, y=(Proportion-1.12)/4), color="black", size=0.25) + scale_y_continuous(limits=c(-.28, 1), expand=c(0, 0))
-				#p2 = ggplot(data=trf%>%filter(Sequence==seq)) + geom_line(aes(x=(End+Start)/2, y=Proportion, color="purple"), size=4) + scale_y_continuous(limits=c(-.08, 1), expand=c(0, 0))
-				#ggarrange(p,p2)
-				#height.factor = height.factor+1
 			}
 			trackOffset = trackOffset - .03
 		}

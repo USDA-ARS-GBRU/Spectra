@@ -13,7 +13,6 @@ logging.basicConfig(level=logging.ERROR)
 logger = logging.getLogger()
 
 def execute(args):
-    #maxSize = 9000000 if 9000000 % args.spacing != 0 else (9000000 // args.spacing) * args.spacing
     maxSize = 30000000 if 30000000 % args.spacing != 0 else (30000000 // args.spacing) * args.spacing
 
     if args.verbose:

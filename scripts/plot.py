@@ -10,18 +10,8 @@ import spectral
 logging.basicConfig(level=logging.INFO)
 
 def colorizeMer(mer):
-    #colors = {"A": "DD", "G": "9F", "C": "60", "T": "11"}
     colors = {"A": "C6", "C": "6C", "G": "3C", "T": "10"}
     return "#" + colors[mer[2]] + colors[mer[1]] + colors[mer[0]]
-
-#('-i', '--input', dest='input_tsv', type=str, help='Input spectra tsv', required=True)
-#('-o', '--output', dest='output', type=str, help='Output spectra plot', default='spectra_plot.png')
-#('-z', '--zoom', dest='zoom_width', type=str, help='Plot only a portion of the windows from between X,Y')
-#('-s', '--sequence', dest='sequence', type=str, help='Plot only sequences matching Name1,Name2,Name3')
-#('-g', '--gff-file', dest='gff_file', type=str, help='Plot annotations from gff')
-#('-t', '--gff-tracks', dest='gff_tracks', type=str, help='Plot only annotations matching category Name1,Name2,Name3')
-#('-l', '--legend', dest='show_legend', action='store_true', help='Draw legend', default=False)
-#('-r', '--dpi', dest='image_resolution', type=int, help='Image resolution in DPI', default=300)
 
 def execute(args):
     if not os.path.exists(args.input_tsv):
@@ -72,4 +62,3 @@ def execute(args):
     # TODO: Fix limits
     # TODO: Change values to frequencies instead of counts
     # TODO: Legend needs to be optional and moved
-    # TODO: Fix graph padding/margin

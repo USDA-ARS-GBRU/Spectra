@@ -10,7 +10,6 @@ suppressPackageStartupMessages(library(optparse))
 
 
 spectraPlot = function(values, legend=FALSE, facet=FALSE, frequencies=FALSE, ylims=TRUE, range, scale,axes){
-	#windowSize = values$End[1]-values$Start[1]
 	if(frequencies){
 		p = ggplot() + geom_area(data=values, aes(fill=name, x=(End+Start)/2, y=value), stat="identity", position="stack")
 	}else{
@@ -98,8 +97,10 @@ option_list <- list(
 	make_option(c("-w", "--window-size"), type="character", default=NULL, help="if specified, generate plot only from the closest intervals of \"N,M\". Otherwise generate a plot for all positions [default %default]", dest="window_size"),
 	make_option(c("-s", "--sequence"), type="character", default=NULL, help="if specified, generate plot only from the sequences with names in \"A,B,C\". Otherwise generate a plot for each sequence id [default %default]", dest="sequences"),
 	make_option(c("-n", "--libraries"), type="character", default=NULL, help="if specified, generate plot only from the libraries with names in \"A,B,C\". Otherwise generate a plot for each library id [default %default]", dest="libraries"),
+	make_option(c("-e", "--regex"), action="store_true", default=FALSE, help="Uses regex to subset sequence and library names [default %default]", dest="regex"),
 	make_option(c("-g", "--gff-file"), type="character", default=NULL, help="if specified, generate plot of overlapping gene annotations from supplied gff. [default %default]", dest="gffFile"),
 	make_option(c("-t", "--gff-tracks"), type="character", default=NULL, help="curate which gff types to use in types \"A,B,C\". [default %default]", dest="gffTracks"),
+	make_option(c("-z", "--trf-file"), type="character", default=NULL, help="Generate plot of overlapping trf annotations from supplied trf-tsv. [default %default]", dest="trfFile"),
 	make_option(c("-l","--show-legend"), action="store_true", default=FALSE, help="display triplet color legend [default %default]", dest="legend"),
 	make_option(c("-o","--output-file"), type="character", default=NULL, help="output filename [default %default]", dest="output_filename"),
 	make_option(c("-r","--resolution"), type="numeric", default=300, help="plotting dpi resolution [default %default]", dest="resolution"),
@@ -148,6 +149,18 @@ if(!is.null(opt$gffFile)){
 	}
 }
 
+# trf preparation
+trf = NULL
+if(!is.null(opt$trfFile)){
+	trf = read.csv(opt$trfFile,sep="\t")
+		# filter
+	if(!is.null(opt$window_size)){
+		coords = strsplit(opt$window_size,",")
+		trf = trf %>% filter(start >= as.numeric(coords[[1]][1]))
+		trf = trf %>% filter(end <= as.numeric(coords[[1]][2]))
+	}
+}
+
 # read tsv values or exit with error
 if(is.null(opt$input_filename)){
   cat("Error: No tsv specified. See usage 'with spectra-plot.r -h'\n")
@@ -158,11 +171,19 @@ if(is.null(opt$input_filename)){
 
 # filter out wasteful data
 if(!is.null(opt$libraries)){
-	values = values %>% filter(Library%in%as.vector(opt$libraries))
+	if(opt$regex){
+		values = values %>% filter(grepl(opt$libraries, Library))
+	}else{
+		values = values %>% filter(Library%in%as.vector(opt$libraries))
+	}
 }
 
 if(!is.null(opt$sequences)){
-	values = values %>% filter(Sequence%in%as.vector(opt$sequences))
+	if(opt$regex){
+		values = values %>% filter(grepl(opt$sequences, Sequence))
+	}else{
+		values = values %>% filter(Sequence%in%as.vector(opt$sequences))
+	}
 }
 
 if(!is.null(opt$window_size)){
@@ -170,6 +191,9 @@ if(!is.null(opt$window_size)){
 	values = values %>% filter(Start >= as.numeric(coords[[1]][1]))
 	values = values %>% filter(End <= as.numeric(coords[[1]][2]))
 }
+
+lib.names = names(table(values$Library))
+seq.names = names(table(values$Sequence))
 
 lib.names = names(table(values$Library))
 seq.names = names(table(values$Sequence))
@@ -214,6 +238,12 @@ for(seq in seq.names){
 	p = spectraPlot(temp.values, legend=opt$legend, facet=faceted, frequencies=opt$frequencies, ylims=opt$ylims, temp.range, opt$scale, opt$axes)
 	if(!is.null(gff)){
 		p = p + geom_segment(data=gff%>%filter(seqid==seq), aes(x=start, xend=end, y=-.03, yend=-.03,color=strand), size=4) + scale_y_continuous(limits=c(-.06, 1), expand=c(0, 0))
+	}
+	if(!is.null(trf)){
+		if(nrow(trf%>%filter(Sequence==seq))>0){
+			p = p + geom_line(data=trf%>%filter(Sequence==seq), aes(x=(End+Start)/2, y=(Proportion-1.12)/4), color="black", size=0.25) + scale_y_continuous(limits=c(-.28, 1), expand=c(0, 0))
+		}
+		trackOffset = trackOffset - .03
 	}
 	ggsave(filename=seq.filename,device=output_file[2], width=temp.length, height=1+height.factor*2, units="in", dpi=opt$resolution, limitsize=F)
 }

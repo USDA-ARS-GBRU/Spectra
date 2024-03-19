@@ -2,7 +2,7 @@
 ## Features
 Several new features are planned with indeterminate timelines. Planned changes are listed here:
 * Reverse-complement analysis
-  * **Status**: _in progress_
+  * **Status**: _complete_
 * Python plotting
   * **Status**: _TBD_
 * All-in-one pipeline

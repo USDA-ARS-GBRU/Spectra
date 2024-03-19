@@ -29,7 +29,6 @@ def filterNormal(spectra, frequencies, file, chiValue=1, dim=64):
     spectra = spectra.assign(Normal=0)
     frequencies = np.array(np.divide(list(frequencies.values()), np.sum(list(frequencies.values()))))
     for row in spectra.iterrows():
-#        spectra.iloc[row[0], dim+5] = normalize(row[1], frequencies, chiValue)
         spectra.iloc[row[0], 68] = normalize(row[1], frequencies, chiValue)
     resultsOut = spectra.copy()
 
@@ -44,14 +43,6 @@ def reduceFrequencies(spectra, frequencies):
     width = spectra['End'][0] - spectra['Start'][0] - 1
     for mer in frequencies:
         count = width * frequencies[mer]
-        # testing multiple modes of reduction/normalization:
-        # method one - (Fobs - Fexp) if (Fobs - Fexp) > 0 else 0
-        # spectra[mer] = spectra[mer].apply(lambda x: (round(x - count) if x - count > 0 else 0))
-        # method two - |Fobs - Fexp|
-        # spectra[mer] = spectra[mer].apply(lambda x: abs(round(x - count)))
-        # method three - Fobs - Fexp
-        # spectra[mer] = spectra[mer].apply(lambda x: round(x - count))
-        # method four - (Fobs - Fexp) / Fexp
         spectra[mer] = spectra[mer].apply(lambda x: round((x - count)/count))
 
     return spectra

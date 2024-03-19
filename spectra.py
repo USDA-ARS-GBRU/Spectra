@@ -4,10 +4,6 @@
 # Core imports: argparse, importlib,  and os will be needed for all three arms
 import argparse
 import importlib
-# import os
-# import logging
-# import configparser
-
 
 def moduleFromPath(path):
     return path[1:].replace(".py", "").replace("/", ".")
@@ -29,7 +25,7 @@ parserCount.add_argument('-l', '--libraries', dest='libraries', action='store_tr
 parserCount.add_argument('-p', '--proportions', dest='proportions', action='store_true', help='Return Spectra 3-mer proportions instead of raw counts', default=False)
 parserCount.add_argument('-m', '--memory', dest='memory', action='store_true', help='Use memory-conservation mode', default=False)
 parserCount.add_argument('-v', '--verbose', dest='verbose', action='store_true', help='Verbose mode', default=False)
-parserCount.add_argument('-n', '--no-overlap', dest='overlap', action='store_false', help='Verbose mode', default=True)
+parserCount.add_argument('-n', '--no-overlap', dest='overlap', action='store_false', help='Count base pairs in repetitive runs of nucleotides only once.', default=True)
 
 parserQuery = subparsers.add_parser("query", description="Generate tsv file of spectra counts")
 parserQuery.add_argument('-i', '--input', dest='input_sequence', type=str, help='Input sequence file', required=True)
@@ -44,12 +40,10 @@ parserQuery.add_argument('-m', '--memory', dest='memory', action='store_true', h
 parserQuery.add_argument('-c', '--complement', dest='complement', action='store_true', help='Complement sequence file name. If set, calculates spectra for sequence complement (not reversed-complemented)', default=False)
 parserQuery.add_argument('-n', '--no-overlap', dest='overlap', action='store_false', help='Verbose mode', default=True)
 
-
 parserCollate = subparsers.add_parser('collate', description='Collate multiple spectra output tsv into a multi-library tsv')
 parserCollate.add_argument('-i', '--input', dest='input_tsvs', help='Input spectra tsvs, separated by spaces', nargs='*', required=True)
 parserCollate.add_argument('-o', '--output', dest='output', help='Output spectra tsv', default='collated_spectra.tsv')
 parserCollate.add_argument('-v', '--verbose', dest='verbose', action='store_true', help='Verbose mode', default=False)
-
 
 parserTransform = subparsers.add_parser('transform', description='Transform spectra data for additional insight')
 parserTransform.add_argument('-i', '--input', dest='input_tsv', type=str, help='Input spectra tsv', required=True)
@@ -63,7 +57,6 @@ parserTransform.add_argument('-p', '--print', dest='print', action='store_true',
 parserTransform.add_argument('-y', '--simplify', dest='simplify', action='store_true', help='Simplify forward and reverse-complement counts per window', default=False)
 parserTransform.add_argument('-v', '--verbose', dest='verbose', action='store_true', help='verbose mode', default=False)
 
-
 parserPlot = subparsers.add_parser('plot', description='Plot spectra profiles')
 parserPlot.add_argument('-i', '--input', dest='input_tsv', type=str, help='Input spectra tsv', required=True)
 parserPlot.add_argument('-o', '--output', dest='output', type=str, help='Output spectra plot', default='spectra_plot.png')
@@ -75,25 +68,14 @@ parserPlot.add_argument('-l', '--legend', dest='show_legend', action='store_true
 parserPlot.add_argument('-r', '--dpi', dest='image_resolution', type=int, help='Image resolution in DPI', default=300)
 parserPlot.add_argument('-v', '--verbose', dest='verbose', action='store_true', help='Verbose mode', default=False)
 
-
 parserAnalyze = subparsers.add_parser('analyze', description='Analyze spectra profiles')
 parserAnalyze.add_argument('-i', '--input', dest='input_tsv', type=str, help='Input spectra tsv', required=True)
 parserAnalyze.add_argument('-o', '--output', dest='output_tsv', type=str, help='Output spectra tsv', default=False)
-parserAnalyze.add_argument('-p', '--penalty', dest='penalty', type=float, help='Ruptures breakpoint penalty criterion', default=1000000)
+parserAnalyze.add_argument('-p', '--penalty', dest='penalty', type=float, help='Ruptures breakpoint penalty criterion.', default=1000000)
 parserAnalyze.add_argument('-a', '--aligned', dest='is_aligned', action='store_true', help='Check for if input tsv comes from alignment or from sequence data', default=False)
 parserAnalyze.add_argument('-s', '--size', dest='size', type=int, help='Minimum windows to be considered a novel segment', default=5)
 parserAnalyze.add_argument('-f', '--frequencies', dest='frequency', action='store_true', help='Process breaks by frequencies instead of raw counts', default=False)
-parserAnalyze.add_argument('-b', '--blocked', dest='is_blocked', action='store_true', help='If data already has breakpoints, ', default=False)
 parserAnalyze.add_argument('-v', '--verbose', dest='verbose', action='store_true', help='Verbose mode', default=False)
-
-parserContigs = subparsers.add_parser('contigs', description='Find congruent contig joins')
-parserContigs.add_argument('-i', '--input', dest='input_tsv', type=str, help='Input spectra tsv', required=True)
-parserContigs.add_argument('-v', '--verbose', dest='verbose', action='store_true', help='Verbose mode', default=False)
-
-parserCluster = subparsers.add_parser('cluster', description='Find congruent contig joins through k-means pairing')
-parserCluster.add_argument('-i', '--input', dest='input_tsv', type=str, help='Input spectra tsv', required=True)
-parserCluster.add_argument('-o', '--output', dest='output_tsv', type=str, help='Output spectra tsv')
-parserCluster.add_argument('-v', '--verbose', dest='verbose', action='store_true', help='Verbose mode', default=False)
 
 args = parser.parse_args()
 
