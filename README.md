@@ -1,3 +1,5 @@
+![Spectra logo](includes/Spectra-Logo.png)
+
 # Introduction
 Spectra is a software toolkit for the analysis of trinucleotide distributions. Spectra was developed as a way to measure and visualize the location of highly repetitious elements along chromosomal sequences, as evidenced through trinucleotide distributions. The included tools allow for counting trinucleotide elements, transforming count results, and visualizing with Spectra graphs.
 
