@@ -93,7 +93,7 @@ def countToFrequency(spectra, index=4, dim=64, merLen=3):
 
 # Transform spectra counts to spectra frequencies
 def frequencyToCount(spectra, index=4, dim=64, merLen=3):
-    return
+    return spectra
 
 # Calculate global frequencies across spectra
 def getGlobalFrequencies(spectra, frequency=False, index=4, dim=64):

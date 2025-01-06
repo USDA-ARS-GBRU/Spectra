@@ -62,10 +62,6 @@ parserPlot.add_argument('-i', '--input', dest='input_tsv', type=str, help='Input
 parserPlot.add_argument('-o', '--output', dest='output', type=str, help='Output spectra plot', default='spectra_plot.png')
 parserPlot.add_argument('-z', '--zoom', dest='zoom_width', type=str, help='Plot only a portion of the windows from between X,Y')
 parserPlot.add_argument('-s', '--sequence', dest='sequence', type=str, help='Plot only sequences matching Name1,Name2,Name3')
-parserPlot.add_argument('-g', '--gff-file', dest='gff_file', type=str, help='Plot annotations from gff')
-parserPlot.add_argument('-t', '--gff-tracks', dest='gff_tracks', type=str, help='Plot only annotations matching category Name1,Name2,Name3')
-parserPlot.add_argument('-l', '--legend', dest='show_legend', action='store_true', help='Draw legend', default=False)
-parserPlot.add_argument('-r', '--dpi', dest='image_resolution', type=int, help='Image resolution in DPI', default=300)
 parserPlot.add_argument('-v', '--verbose', dest='verbose', action='store_true', help='Verbose mode', default=False)
 
 parserAnalyze = subparsers.add_parser('analyze', description='Analyze spectra profiles')

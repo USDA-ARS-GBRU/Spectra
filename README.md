@@ -16,7 +16,7 @@ Spectra is a software toolkit for the analysis of trinucleotide distributions. S
   - **Required packages**
     - biopython, numpy, pandas, ruptures
   - **Optional packages**
-    - matplotlib, multiprocessing, plotnine,scipy
+    - kaleido, matplotlib, multiprocessing, plotly, scipy
 - **R 4.x**
   - **Required packages**
       - ggplot2, dplyr, optparse,tidyr
