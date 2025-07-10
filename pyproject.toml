@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=64", "setuptools_scm>=8"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "spectra"
+dynamic = ["version"]
+
+description = "Analyze and visualize 3-mers in genetic sequence data"
+authors = [
+	{name = "Andrew Ontano", email =  "andrew.ontano@uga.edu"},
+]
+maintainers = [
+	{name = "Andrew Ontano", email =  "andrew.ontano@uga.edu"},
+]
+license = {file = "LICENSE.txt"}
+readme = "README.md"
+keywords = ["genome", "visualization", "kmer"]
+requires-python = ">=3.6"
+
+dependencies = [
+	"biopython >=1.84",
+	"ruptures >= 1.1.8",
+	"pandas >= 2.2.3",
+	"matplotlib >= 3.7.2",
+	"plotly >= 5.23.0",
+]
+
+[project.urls]
+repository = "https://github.com/USDA-ARS-GBRU/Spectra"
+
+[project.optional-dependencies]
+tests = [
+"pytest"
+]

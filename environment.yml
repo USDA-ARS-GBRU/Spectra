@@ -1,0 +1,12 @@
+channels:
+- conda-forge
+dependencies:
+- biopython=1.84
+- matplotlib=3.8.4
+- pandas=2.2.2
+- plotly=5.23.0
+- ruptures=1.1.8
+- r-dplyr=1.1.4
+- r-ggplot2=3.5.1
+- r-optparse=1.7.5
+- r-tidyr=1.3.1

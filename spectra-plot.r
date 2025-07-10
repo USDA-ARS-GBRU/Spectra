@@ -2,7 +2,7 @@
 ####
 ##### Repeats along (catermerize) sequence for multiple libraries
 
-#load dependencies
+#Load dependencies
 suppressPackageStartupMessages(library(ggplot2))
 suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(tidyr))
@@ -167,8 +167,6 @@ circularPlot = function(values, tripletColors, legend=FALSE, frequencies=FALSE, 
 	return(p)
 }
 
-trfPlot = function(){}
-
 paletteBuilder = function(triplet,palette=opt$palette){
 	bases = c("A","C","G","T")
 	colors = switch(
@@ -195,10 +193,11 @@ option_list <- list(
 	make_option(c("-g", "--gff-file"), type="character", default=NULL, help="Generate plot of overlapping gene annotations from supplied gff. [default %default]", dest="gffFile"),
 	make_option(c("-t", "--gff-tracks"), type="character", default=NULL, help="Curate which gff types to use in types \"A,B,C\". [default %default]", dest="gffTracks"),
 	make_option(c("-z", "--trf-file"), type="character", default=NULL, help="Generate plot of overlapping trf annotations from supplied trf-tsv. [default %default]", dest="trfFile"),
-	make_option(c("-l","--show-legend"), action="store_true", default=FALSE, help="Display triplet color legend [default %default]", dest="legend"),
-	make_option(c("-o","--output-file"), type="character", default=NULL, help="Output filename [default %default]", dest="output_filename"),
+	make_option(c("-o","--output-prefix"), type="character", default=NULL, help="Output prefix [default %default]", dest="output_filename"),
+	make_option(c("-f","--output-format"), type="character", default="png", help="Output image format [default %default]", dest="output_type"),
 	make_option(c("-r","--resolution"), type="numeric", default=300, help="Plotting dpi resolution [default %default]", dest="resolution"),
-	make_option(c("-f","--freq"), action="store_true", default=FALSE, help="Data already transformed to frequencies [default %default]", dest="frequencies"),
+	make_option(c("-q","--freq"), action="store_true", default=FALSE, help="Data already transformed to frequencies [default %default]", dest="frequencies"),
+	make_option(c("-l","--show-legend"), action="store_true", default=FALSE, help="Display triplet color legend [default %default]", dest="legend"),
 	make_option(c("-y","--ylims"), action="store_false", default=TRUE, help="Limit results to y-axes between 0,1 [default %default]", dest="ylims"),
 	make_option(c("-x","--scale"), type="numeric", default=1, help="Scale of x-axis. Plot each n (mb) over 1 inch [default %default]", dest="scale"),
 	make_option(c("-a","--axes"), action="store_false", default=TRUE, help="Display axes text [default %default]", dest="axes"),
@@ -210,17 +209,15 @@ options(error=traceback)
 parser = OptionParser(usage = "%prog -i triplet.tsv [options]",option_list=option_list)
 opt = parse_args(parser)
 
-# prepare outputfile space
+# Prepare outputfile space. If no output given
 if(is.null(opt$output_filename)){
 	split_file = strsplit(opt$input_filename,"/")[[1]]
-	output_file = c(split_file[length(split_file)],"png")
+	output_file = c(split_file[length(split_file)],opt$output_type)
 }else{
-	split_file = strsplit(opt$output_filename,"\\.")[[1]]
-	output_type = split_file[length(split_file)]
 	if(output_type=="svg"){
 		suppressPackageStartupMessages(library(svglite))
 	}
-	output_file = c(split_file[1], output_type)
+	output_file = c(opt$output_filename, opt$output_type)
 }
 
 # script info for finding utils folder
@@ -316,7 +313,6 @@ tripletColors=sapply(paletteNames,paletteBuilder)
 if(opt$circular){
 	# write multiple plots in a single frame if sequence names are the same
 		seq.filename = paste0(output_file[1], '.', output_file[2])
-
 		p = circularPlot(values, tripletColors, legend=opt$legend, frequencies=opt$frequencies, ylims=opt$ylims, opt$axes, paletteNames, opt$length)
 		trackOffset=-0.03
 		ggsave(filename=seq.filename,device=output_file[2], width=10, height=10, units="in", dpi=opt$resolution, limitsize=F)

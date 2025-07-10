@@ -8,14 +8,20 @@ import os
 import pandas as pd
 import matplotlib.pyplot as plt
 import spectral
+import numpy as np
 logging.basicConfig(level=logging.ERROR)
 logger = logging.getLogger()
 
 # plots breakpoints calculated through ruptures
-def plotBreakpoints(sequence, data, dataAlgo):
-    fig, ax_arr = rpt.display(data, dataAlgo, figsize=(30, 150))
-    plt.savefig(f'breakpoints_breakdown_{sequence}.png')
-    plt.close()
+def plotBreakpoints(spectra, index=4, dim=64, penalty=1000000, min_size=5, output=""):
+    spectra = spectra.groupby(['Library', 'Sequence'])
+    for group in spectra:
+        data = group[1].iloc[0:len(group[1]), index:index + dim].to_numpy()
+        if len(data) > min_size * 2:
+            dataAlgo = rpt.KernelCPD(min_size=min_size).fit(data).predict(pen=penalty)
+            fig, ax_arr = rpt.display(np.ndarray(shape=1), dataAlgo, figsize=(30, 1))
+            plt.savefig(f'breakpoints_breakdown_{output}_{group[0][0]}_{group[0][1]}.png')
+            plt.close()
 
 # function to iterate over the windows and convert them to frequencies
 # raw counts misrepresent kmer diversity in gappy alignments
@@ -35,7 +41,6 @@ def execute(args):
     spectra = pd.read_csv(args.input_tsv, delimiter='\t')
     indexLength = 4
     spectraDimensions = len(spectra.columns) - indexLength
-
     if args.frequency:
         # penalty is temporarily locked to 1 or lower for frequency-based breakpoints
         if args.penalty > 1:
@@ -54,8 +59,4 @@ def execute(args):
     else:
         for line in results.iterrows():
             print(f"{line[1][0]}, {line[1][1]}, {line[1][4]}, {line[1][5]}")
-
-
-
-
-
+    plotBreakpoints(spectra, penalty=args.penalty, min_size=args.size, index=indexLength, dim=spectraDimensions, output=args.output_tsv if args.output_tsv else '')
