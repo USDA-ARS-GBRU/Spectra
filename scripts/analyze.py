@@ -59,4 +59,4 @@ def execute(args):
     else:
         for line in results.iterrows():
             print(f"{line[1][0]}, {line[1][1]}, {line[1][4]}, {line[1][5]}")
-    plotBreakpoints(spectra, penalty=args.penalty, min_size=args.size, index=indexLength, dim=spectraDimensions, output=args.output_tsv if args.output_tsv else '')
+    #plotBreakpoints(spectra, penalty=args.penalty, min_size=args.size, index=indexLength, dim=spectraDimensions, output=args.output_tsv if args.output_tsv else '')

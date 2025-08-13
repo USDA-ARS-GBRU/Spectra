@@ -5,7 +5,6 @@ Spectra: Software for analysis and visualization of 3-mers in genetic sequence d
 
 ## Introduction
 
----
 Spectra is a software toolkit for the analysis of 3-mer (trinucleotide) distributions. Spectra was developed as a way
 to assess regions of DNA that are comprised of unique sets of k-mers from one another, and to break those k-mers down
 to their basal elements. This offers the ability to measure and localize shifts in genetic composition and identify the

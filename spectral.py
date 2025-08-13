@@ -86,9 +86,11 @@ def getBreakpointFrequencies(spectra, frequency, index=4, dim=64):
 
 # Transform spectra counts to spectra frequencies
 def countToFrequency(spectra, index=4, dim=64, merLen=3):
-    for row in spectra.iterrows():
-        denominator = row[1]['End'] - row[1]['Start'] - (merLen - 2)
-        spectra.iloc[row[0], index:index + dim] = np.array(spectra.iloc[row[0], index:index + dim]) / denominator
+    for column in range(index,index+dim):
+        spectra[spectra.columns[column]] = spectra[spectra.columns[column]].astype("float")
+    for rowIndex, row in spectra.iterrows():
+        denominator = row['End'] - row['Start'] - (merLen - 2)
+        spectra.iloc[rowIndex, index:index + dim] = spectra.iloc[rowIndex, index:index + dim] / denominator
     return spectra
 
 # Transform spectra counts to spectra frequencies
