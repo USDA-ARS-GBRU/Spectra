@@ -2,11 +2,17 @@
 import argparse
 import os
 import time
-from Bio import SeqIO
+from Bio import SeqIO, Seq
 import csv
+import sys
 import logging
 from collections import Counter, namedtuple
-import spectral  # assuming spectral.rc for reverse complement
+import sys
+
+def rc(sequence):
+    sequence = Seq.Seq(sequence)
+    return str(sequence.reverse_complement())
+
 
 # Sliding window utilities
 # A tuple with the elements for generating a sequence start/end paired with a percentile and its count
