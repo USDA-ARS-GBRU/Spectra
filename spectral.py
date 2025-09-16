@@ -2,11 +2,41 @@ import ruptures as rpt
 import pandas as pd
 import numpy as np
 from Bio import Seq
+from collections import Counter
+import itertools
 
+def setMers(merSize=3):
+    bases = ["A", "C", "G", "T"]
+    return ["".join(a) for a in list(itertools.product(bases, repeat=merSize))]
 # Shorthand for string reverse-complement using Biopython
 def rc(sequence):
     sequence = Seq.Seq(sequence)
     return str(sequence.reverse_complement())
+
+def canonical(kmer):
+    return min(kmer, rc(kmer))
+
+def mapCanonicalMers(kmers):
+    kmer_index = {k: i for i, k in enumerate(kmers)}
+    seen = set()
+    result = {}
+    for kmer, i in kmer_index.items():
+        rcMer = rc(kmer)
+        if kmer in seen or rcMer in seen:
+            continue
+        j = kmer_index[rcMer]
+        # canonical = lexicographically smaller of the pair
+        result[canonical(kmer)] = [i, j]
+        seen.add(kmer)
+        seen.add(rcMer)
+    return result
+def collapseRC(row, mers, index=4, dim=64):
+    meta = row[:index]
+    counts = row[index:index+dim]
+    collapsedCounts = []
+    for canon, (i, j) in mers.items():
+        collapsedCounts.append(counts[i] +counts[j])
+    return meta + collapsedCounts
 
 # Validate takes an input df, and returns a tuple of (0) approved spectra descriptor fields and (1) triplet or query names
 def validate(df):
@@ -30,13 +60,23 @@ def simplify(spectra, index=4, dim=64):
     return spectra.drop(columns=[simpleQueries[a] for a in simpleQueries if a != simpleQueries[a]])
 
 # Counts the spectra of a sequence
-def windowCount(seq):
-    return seq[4] + [seq[2] + 1, seq[2] + len(seq[0]) if seq[2] + len(seq[0]) < seq[3] else seq[3]] + [
-               seq[0].count_overlap(a) for a in seq[1]]
+def windowCount(seq, complement=False):
+    windowSeq, queries, start, end, headers = seq
+    windowSeq = str(windowSeq)
+    counts = Counter(windowSeq[i:i + 3] for i in range(len(windowSeq) - 2))
+    if complement:
+        counts = collapseRC(counts, queries)
+        queries = sorted(set(min(q, rc(q)) for q in queries))
+    return headers + [start + 1, min(start + len(windowSeq), end)] + [counts.get(q, 0) for q in queries]
+    #return seq[4] + [seq[2] + 1, seq[2] + len(seq[0]) if seq[2] + len(seq[0]) < seq[3] else seq[3]] + [
+    #           seq[0].count_overlap(a) for a in seq[1]]
 
-def windowCountNoOverlap(seq):
-    return seq[4] + [seq[2] + 1, seq[2] + len(seq[0]) if seq[2] + len(seq[0]) < seq[3] else seq[3]] + [
-        seq[0].count(a) for a in seq[1]]
+def windowCountNoOverlap(seq, complement=False):
+    windowSeq, queries, start, end, headers = seq
+    windowSeq = str(windowSeq)
+    return headers + [start + 1, min(start + len(windowSeq), end)] + [windowSeq.count(q) for q in queries]
+    #return seq[4] + [seq[2] + 1, seq[2] + len(seq[0]) if seq[2] + len(seq[0]) < seq[3] else seq[3]] + [
+    #    seq[0].count(a) for a in seq[1]]
 
 # Calculate breakpoints from spectra
 # For 64 literal counts, a penalty of 1,000,000 is ideal, but for frequencies a penalty of 0.5 is ideal

@@ -5,7 +5,10 @@ dependencies:
 - matplotlib=3.8.4
 - pandas=2.2.2
 - plotly=5.23.0
+- reportlab=4.4.3
 - ruptures=1.1.8
+- scipy=1.16.2
+- seaborn=0.13.2
 - r-dplyr=1.1.4
 - r-ggplot2=3.5.1
 - r-optparse=1.7.5

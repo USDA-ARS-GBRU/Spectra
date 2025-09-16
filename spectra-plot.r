@@ -3,78 +3,76 @@
 ##### Repeats along (catermerize) sequence for multiple libraries
 
 #Load dependencies
-suppressPackageStartupMessages(library(ggplot2))
-suppressPackageStartupMessages(library(dplyr))
-suppressPackageStartupMessages(library(tidyr))
-suppressPackageStartupMessages(library(optparse))
+suppressPackageStartupMessages({
+  library(dplyr)
+  library(tidyr)
+  library(ggplot2)
+  library(optparse)
+})
+
+baseTheme = theme_bw() + theme(
+	axis.title.x = element_text(size=5),
+	axis.title.y = element_text(size=5),
+	legend.key.size = unit(5, "pt"),
+	legend.spacing = unit(-3, "pt"),
+	axis.text.x = element_text(angle=0, vjust=0.5, size=5),
+	axis.text.y = element_text(size=5),
+	line = element_blank(),
+	axis.ticks = element_line(),
+	legend.title = element_blank()
+)
 
 spectraPlot = function(values, tripletColors, legend=FALSE, facet=FALSE, frequencies=FALSE, ylims=TRUE, range, scale, axes, paletteNames){
+    if(!frequencies){
+        values = values %>% mutate(value=value/(End-Start+1))
+    }
+    values = values %>% group_by(Library, Sequence, Start, End) %>%
+        arrange(desc(name), .by_group=TRUE, ) %>%
+        mutate(ymax = cumsum(value), ymin = ymax - value) %>%
+        ungroup()
+    p <- ggplot(values, aes(x=(Start+End)/2, ymin=ymin, ymax=ymax, fill=name)) +
+    geom_ribbon()
 
-	if(frequencies){
-		p = ggplot() + geom_area(data=values, aes(fill=name, x=(End+Start)/2, y=value), stat="identity", position="stack")
-	}else{
-		p = ggplot() + geom_area(data=values, aes(fill=name, x=(End+Start)/2,y=value/(End-Start+1)), stat="identity", position="stack")
-	}
-	if(ylims){
-        p = p + scale_y_continuous(limits=c(0,1), expand=c(0, 0))
-	}else{
-		p = p + scale_y_continuous(expand=c(0, 0))
-	}
-	####
-    range = max(values$End)-min(values$Start)+1
-	####
+    if (ylims) {
+        p <- p + scale_y_continuous(limits=c(0,1), expand=c(0,0))
+    } else {
+        p <- p + scale_y_continuous(expand=c(0,0))
+    }
 
-	breaks = range %/% (scale*1000000)
-	# automatically lower the scale if sequence is too small (less than 1 scalar)
-	if(breaks < 2){
-	    breaks=2
-	}
-	# reminder: change n.breaks=10 to n.breaks=breaks
-	#
-	p = p + scale_fill_manual(values=tripletColors) +
-	    scale_x_continuous(
+    xrange <- max(values$End) - min(values$Start) + 1
+    if(log10(xrange) > log10(scale*1000000)+1){
+        scale = scale * 10
+    }
+    breaks <- xrange %/% (scale*1000000)
+    if (breaks < 2) breaks = 2
+    p <- p + scale_fill_manual(values=tripletColors) +
+        scale_x_continuous(
             limits=c(min(values$Start), max(values$End)),
-            breaks=waiver(),
-            minor_breaks=waiver(),
-            n.breaks=10,
-            expand=c(0, 0),
+            n.breaks=breaks,
+            expand=c(0,0),
             labels=scales::scientific
-		) +
-		xlab("Window Position (nucleotide)") +
-		ylab("Proportion") +
-		theme_bw() +
-		theme(
-		    axis.title.x = element_text(size=5),
-			axis.title.y = element_text(size=5),
-			legend.text = element_text(size=5),
-			legend.key.size = unit(5, "pt"),
-			legend.spacing = unit(-3, "pt"),
-			axis.text.x = element_text(angle=0, vjust=0.5, size=5),
-			axis.text.y = element_text(size=5),
-			line = element_blank(),
-			axis.ticks = element_line(),
-			legend.title = element_blank(),
-			plot.margin = margin(t=2.5, l=2.5, b=2.5, r=2.5)
-		)
+        ) +
+        xlab("Window Position (nucleotide)") +
+        ylab(if (frequencies) "Frequency" else "Proportion") +
+       baseTheme + theme(plot.margin = margin(t=2.5, l=2.5, b=2.5, r=2.5))
 
-	if(facet){
-		p = p + facet_grid(rows = vars(values$Library))
-	}
-	if(!legend){
-		p = p + theme(legend.position = "none")
-	}
-	if(!axes){
-		p = p +
-		theme(
-			axis.text.x = element_blank(),
-			axis.text.y = element_blank(),
-			axis.title.x = element_blank(),
-			axis.title.y = element_blank(),
-			axis.ticks = element_blank(),
-			plot.margin = margin(t=0, l=-2.7, b=-2.7, r=0)
-		)
-	}
-	return(p)
+    if (facet) {
+        p <- p + facet_grid(rows = vars(Library))
+    }
+    if (!legend) {
+        p <- p + theme(legend.position = "none")
+    }
+    if (!axes) {
+        p <- p + theme(
+          axis.text.x = element_blank(),
+          axis.text.y = element_blank(),
+          axis.title.x = element_blank(),
+          axis.title.y = element_blank(),
+          axis.ticks = element_blank(),
+          plot.margin = margin(t=0, l=-2.7, b=-2.7, r=0)
+        )
+    }
+    return(p)
 }
 
 circularPlot = function(values, tripletColors, legend=FALSE, frequencies=FALSE, ylims=TRUE, axes=FALSE, paletteNames, limit=0){
@@ -89,7 +87,7 @@ circularPlot = function(values, tripletColors, legend=FALSE, frequencies=FALSE, 
 	)
 	
 	# modify sequence positions to be absolute
-	sequences_names=names(table(values$Sequence))
+	sequences_names=unique(values$Sequence)
 	newValues = values %>% filter(Sequence==sequences_names[1])
 	current_max = max(newValues$End)
 	
@@ -133,18 +131,8 @@ circularPlot = function(values, tripletColors, legend=FALSE, frequencies=FALSE, 
 	)+
 	xlab("Window Position (nucleotide)") +
 	ylab("Proportion") +
-	theme_bw() +
+	baseTheme +
 	theme(
-		axis.title.x = element_text(size=5),
-		axis.title.y = element_text(size=5),
-		legend.text = element_text(size=5),
-		legend.key.size = unit(5, "pt"),
-		legend.spacing = unit(-3, "pt"),
-		axis.text.x = element_text(angle=0, vjust=0.5, size=5),
-		axis.text.y = element_text(size=5),
-		line = element_blank(),
-		axis.ticks = element_line(),
-		legend.title = element_blank(),
 		plot.margin = margin(t=0, l=0, b=0, r=0)
 	)# +
 	#facet_grid(cols = vars(values$Sequence))
@@ -214,7 +202,7 @@ if(is.null(opt$output_filename)){
 	split_file = strsplit(opt$input_filename,"/")[[1]]
 	output_file = c(split_file[length(split_file)],opt$output_type)
 }else{
-	if(output_type=="svg"){
+	if(opt$output_type=="svg"){
 		suppressPackageStartupMessages(library(svglite))
 	}
 	output_file = c(opt$output_filename, opt$output_type)
@@ -244,7 +232,7 @@ if(!is.null(opt$gffFile)){
 # trf preparation
 trf = NULL
 if(!is.null(opt$trfFile)){
-	trf = read.csv(opt$trfFile,sep="\t")
+    trf = readr::read_tsv(opt$trfFile, show_col_types = FALSE)
 		# filter
 	if(!is.null(opt$window_size)){
 		coords = strsplit(opt$window_size,",")
@@ -258,7 +246,7 @@ if(is.null(opt$input_filename)){
   cat("Error: No tsv specified. See usage 'with spectra-plot.r -h'\n")
   quit()
 }else{
-	values = read.csv(opt$input_filename,sep="\t",stringsAsFactors = FALSE)
+    values = readr::read_tsv(opt$input_filename, show_col_types = FALSE)
 }
 
 # filter out wasteful data
@@ -284,8 +272,8 @@ if(!is.null(opt$window_size)){
 	values = values %>% filter(End <= as.numeric(coords[[1]][2]))
 }
 
-lib.names = names(table(values$Library))
-seq.names = names(table(values$Sequence))
+lib.names = unique(values$Library)
+seq.names = unique(values$Sequence)
 
 if(length(lib.names)>1 && !is.null(opt$gffFile)){
 	print("Warning: the gff track will be omitted because multiple libraries are being plotted.")
@@ -298,7 +286,7 @@ values = values %>% tidyr::pivot_longer(cols=starts_with(c("A","C","G","T")))
 # Color and Palette building
 paletteOrderDF = read.csv(paste0(dirname(scriptLocation),"/includes/paletteMatrix_base.csv"))
 
-tripletNames=names(table(values$name))
+tripletNames=unique(values$name)
 paletteNames = c()
 for(colNum in 1:ncol(paletteOrderDF)){
 	for(rowNum in 1:nrow(paletteOrderDF)){
@@ -339,7 +327,7 @@ if(opt$circular){
 
 		if(length(lib.names)>1){
 			faceted=TRUE
-			height.factor = length(names(table(temp.values$Library)))
+			height.factor = length(unique(temp.values$Library))
 		}else{
 			faceted=FALSE
 			height.factor = 1
@@ -351,7 +339,7 @@ if(opt$circular){
 			trackOffset = trackOffset - .03
 		}
 		if(!is.null(trf)){
-			if(nrow(trf%>%filter(Sequence==seq))>0){
+		    if(any(trf$Sequence==seq)){
 				p = p + geom_line(data=trf%>%filter(Sequence==seq), aes(x=(End+Start)/2, y=(Proportion-1.12)/4), color="black", size=0.25) + scale_y_continuous(limits=c(-.28, 1), expand=c(0, 0))
 			}
 			trackOffset = trackOffset - .03

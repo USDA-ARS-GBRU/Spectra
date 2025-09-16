@@ -75,6 +75,7 @@ def execute(args):
         spectra = spectral.simplify(spectra, dim=len(queries))
         spectra.to_csv(args.output, sep='\t', index=False)
 
+
     logging.info(f'Execution time in seconds: {time.time() - startTime}')
 
 
