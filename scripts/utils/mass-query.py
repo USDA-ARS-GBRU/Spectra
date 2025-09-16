@@ -118,7 +118,7 @@ with open(args.output, "w", newline="") as fileOutput:
                     kmer = line.strip().split("\t")[0]
                     kmers.add(kmer)
                     if args.complement:
-                        kmers.add(spectral.rc(kmer))
+                        kmers.add(rc(kmer))
             logger.info(f"Bin {bin_name} has {len(kmers):,} kmers")
             # Scan genome for this bin
             for record in SeqIO.parse(args.input, args.format):

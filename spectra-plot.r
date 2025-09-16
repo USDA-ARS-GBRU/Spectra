@@ -8,6 +8,7 @@ suppressPackageStartupMessages({
   library(tidyr)
   library(ggplot2)
   library(optparse)
+  library(readr)
 })
 
 baseTheme = theme_bw() + theme(
@@ -43,12 +44,12 @@ spectraPlot = function(values, tripletColors, legend=FALSE, facet=FALSE, frequen
     if(log10(xrange) > log10(scale*1000000)+1){
         scale = scale * 10
     }
-    breaks <- xrange %/% (scale*1000000)
-    if (breaks < 2) breaks = 2
+    #breaks <- xrange %/% (scale*1000000)
+    #if (breaks < 2) breaks = 2
     p <- p + scale_fill_manual(values=tripletColors) +
         scale_x_continuous(
             limits=c(min(values$Start), max(values$End)),
-            n.breaks=breaks,
+            n.breaks=10,
             expand=c(0,0),
             labels=scales::scientific
         ) +

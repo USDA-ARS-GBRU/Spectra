@@ -8,6 +8,7 @@ suppressPackageStartupMessages({
   library(tidyr)
   library(ggplot2)
   library(optparse)
+  library(readr)
 })
 
 baseTheme = theme_bw() + theme(
@@ -33,17 +34,17 @@ coveragePlot = function(values, legend=FALSE, range, scale, axes){
   if(log10(xrange) > log10(scale*1000000)+1){
     scale = scale * 10
   }
-  breaks <- xrange %/% (scale*1000000)
-  if (breaks < 2) breaks = 2
+  #breaks <- xrange %/% (scale*1000000)
+  #if (breaks < 2) breaks = 2
   p = p + scale_x_continuous(
       limits=c(min(values$Start), max(values$End)),
-      n.breaks=breaks,
+      n.breaks=10,
       expand=c(0,0),
       labels=scales::scientific
     ) +
     xlab("Window Position (nucleotide)") +
     ylab("Counts") +
-    baseTheme + theme(plot.margin = margin(t=2.5, l=2.5, b=2.5, r=2.5))
+    baseTheme + theme(plot.margin = margin(t=2.5, l=2.5, b=2.5, r=2.5), legend.position = "bottom")
   if (!axes) {
     p <- p + theme(
       axis.text.x = element_blank(),
