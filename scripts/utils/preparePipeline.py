@@ -60,21 +60,21 @@ with open(args.output, 'w') as f:
         for rawIn in args.raw:
             if os.path.exists(rawIn):
                 f.write(f"{args.jf_path} count -t {args.threads} -s {args.jf_bloom} -m {args.mer_size} -o {args.prefix}_rcp_{os.path.basename(rawIn)}.jfc -C " + (f"<(zcat {rawIn})\n" if rawIn.endswith(".gz") else f"{rawIn}\n"))
-                f.write(f"{args.jf_path} stats {args.prefix}_rcp_{os.path.basename(rawIn)}.jfc > {args.prefix}_rcp_{os.path.basename(rawIn)}.jstats")
+                f.write(f"{args.jf_path} stats {args.prefix}_rcp_{os.path.basename(rawIn)}.jfc > {args.prefix}_rcp_{os.path.basename(rawIn)}.jstats\n")
             else:
                 print(f"Error: file {rawIn} not found. Excluded from script.")
         f.write(f"{args.jf_path} merge -o {args.prefix}_raw_count.jfc {args.prefix}_rcp_*.jfc\n")
     else:
         f.write(f"{args.jf_path} count -t {args.threads} -s {args.jf_bloom} -m {args.mer_size} -o {args.prefix}_raw_count.jfc -C "+ (f"<(zcat {args.raw[0]})\n" if args.raw[0].endswith(".gz") else f"{args.raw[0]}\n"))
-    f.write(f"{args.jf_path} stats {args.prefix}_raw_count.jfc > {args.prefix}_raw_count.jstats")
+    f.write(f"{args.jf_path} stats {args.prefix}_raw_count.jfc > {args.prefix}_raw_count.jstats\n")
     f.write(f"{args.jf_path} dump -L {args.raw_min} -c {args.prefix}_raw_count.jfc |sort > {args.prefix}_raw.jdump\n")
     if args.clean:
         f.write(f"rm {args.prefix}_r*.jfc\n\n")
 
     f.write("###### Run assembly jellyfish calculations, then dump and sort kmers above minimum.\n")
     f.write(f"{args.jf_path} count -t {args.threads} -s {args.jf_bloom} -m {args.mer_size} -o {args.prefix}_asm_count.jfc -C {args.assembled}\n")
-    f.write(f"{args.jf_path} stats {args.prefix}_asm_count.jfc > {args.prefix}_asm_count.jstats")
-    f.write(f"{args.jf_path} dump -L {args.asm_min} -c {args.prefix}_asm_count.jfc |sort > {args.prefix}_asm.jdump\n")
+    f.write(f"{args.jf_path} stats {args.prefix}_asm_count.jfc > {args.prefix}_asm_count.jstats\n")
+    f.write(f"{args.jf_path} dump -L {args.asm_min} -c {args.prefix}_asm_count.jfc |sort > {args.prefix}_asm.jdump\n\n")
     if args.clean:
         f.write(f"rm {args.prefix}_asm_count.jfc\n\n")
 
