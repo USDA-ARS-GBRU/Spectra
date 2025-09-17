@@ -77,7 +77,7 @@ def make_report(output_pdf, image_dir, mer, prefix):
     story.append(PageBreak())
 
     paragraphText = f"<b>Sequence-specific spectra breakdowns:</b> the following pages are a breakdown of spectra (K=3 mer distribution) and the K={mer} localization of exact kmer matches for highest 5% and lowest 5% in abundance change. Spectra plots show the 64 K=3 mers. Each page will have: high-abundance kmers(top), spectra (middle), and low abundance (bottom). K={mer} abundance plots are not to scale."
-    sequenceNames = [f[len(args.prefix) + 13:-4] for f in os.listdir(args.directory) if (
+    sequenceNames = [f[len(args.prefix) + 9:-4] for f in os.listdir(args.directory) if (
             os.path.isfile(os.path.join(args.directory, f)) and f[len(args.prefix) + 1:].startswith("spectra"))]
     if len(sequenceNames) > 50:
         logging.error(f"Too many contigs to tabulate, only the first 50 (alphabetically) will be output. ")
