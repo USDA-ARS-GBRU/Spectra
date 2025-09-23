@@ -23,6 +23,13 @@ def plotBreakpoints(spectra, index=4, dim=64, penalty=1000000, min_size=5, outpu
             plt.savefig(f'breakpoints_breakdown_{output}_{group[0][0]}_{group[0][1]}.png')
             plt.close()
 
+def gffWriter(results, output):
+    with open(f"{output}_bins.gff", 'w') as outFile:
+        i = 0
+        for line in results.iterrows():
+            outFile.write(f"{line[1]['Sequence']}\tSpectra-bins\tbin-region\t{line[1]['Start']}\t{line[1]['End']}\t.\t{'+' if i%2==0 else '-'}\t.\tBin ID:{line[1]['Bin']}, size: {line[1]['Length']}\n")
+            i += 1
+
 # function to iterate over the windows and convert them to frequencies
 # raw counts misrepresent kmer diversity in gappy alignments
 def padWindows(spectra, tally, mer):
@@ -49,13 +56,14 @@ def execute(args):
     breakpoints = spectral.getBreakpoints(spectra, penalty=args.penalty, min_size=args.size, index=indexLength, dim=spectraDimensions)
     spectra = spectral.applyBreakpoints(spectra, breakpoints)
 
-    if args.output_tsv:
-        spectra.to_csv(args.output_tsv, sep='\t', index=False)
+    if args.output_prefix:
+        spectra.to_csv(f"{args.output_prefix}.tsv", sep='\t', index=False)
 
     spectraDimensions -= 1
     results = spectral.getBreakpointFrequencies(spectra, args.frequency, index=indexLength, dim=spectraDimensions)
-    if args.output_tsv:
-        results.to_csv(f"bins_{args.output_tsv}", index=False, sep='\t')
+    if args.output_prefix:
+        results.to_csv(f"{args.output_prefix}_bins.tsv", index=False, sep='\t')
+        gffWriter(results,args.output_prefix)
     else:
         for line in results.iterrows():
             print(f"{line[1][0]}, {line[1][1]}, {line[1][4]}, {line[1][5]}")

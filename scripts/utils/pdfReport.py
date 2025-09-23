@@ -12,9 +12,10 @@ def imagePrep(path,width=6.5 * inch, height=9 * inch):
     outImage = Image(path)
     outImage._restrictSize(width, height)
     return outImage
-def make_report(output_pdf, image_dir, mer, prefix):
+def make_report(output_pdf, image_dir, mer, prefix, bins=False, ngaps=False):
     # Set up document
     doc = SimpleDocTemplate(output_pdf, pagesize=letter)
+    doc.title = f'Spectra output report: {prefix}'
     story = []
     styles = getSampleStyleSheet()
 
@@ -28,10 +29,11 @@ def make_report(output_pdf, image_dir, mer, prefix):
         os.path.join(image_dir, f"{prefix}_kmer_comp_k{mer}_density.png"),
         os.path.join(image_dir, f"{prefix}_kmer_comp_k{mer}_back2back_density.png"),
         os.path.join(image_dir, f"{prefix}_kmer_comp_k{mer}_violin.png"),
-        os.path.join(image_dir, f"{prefix}_kmer_comp_k{mer}_ecdf.png")
+        os.path.join(image_dir, f"{prefix}_kmer_comp_k{mer}_ecdf.png"),
+        os.path.join(image_dir, f"{prefix}_circular.png")
     ]
     story.append(Paragraph(
-        f"<b>K={args.mer_size} distributions:</b> Kmer prevalence (left) in raw data [x-axis, log-scale] against prevalence in assembled data [y-axis, log-scale]. Kmer prevalence (right) when filtered for the top and bottom 5% of kmers by shift in abundance between datasets.",
+        f"<b>K={mer} distributions:</b> Kmer prevalence (left) in raw data [x-axis, log-scale] against prevalence in assembled data [y-axis, log-scale]. Kmer prevalence (right) when filtered for the top and bottom 5% of kmers by shift in abundance between datasets.",
         styles["Normal"]))
     if os.path.exists(paths[0]) and os.path.exists(paths[1]):
         row = [imagePrep(path = paths[0], width=3.75 * inch, height=4.5 * inch), imagePrep(path = paths[1], width=3.75 * inch, height=4.5 * inch)]
@@ -77,16 +79,28 @@ def make_report(output_pdf, image_dir, mer, prefix):
     story.append(PageBreak())
 
     paragraphText = f"<b>Sequence-specific spectra breakdowns:</b> the following pages are a breakdown of spectra (K=3 mer distribution) and the K={mer} localization of exact kmer matches for highest 5% and lowest 5% in abundance change. Spectra plots show the 64 K=3 mers. Each page will have: high-abundance kmers(top), spectra (middle), and low abundance (bottom). K={mer} abundance plots are not to scale."
-    sequenceNames = [f[len(args.prefix) + 9:-4] for f in os.listdir(args.directory) if (
-            os.path.isfile(os.path.join(args.directory, f)) and f[len(args.prefix) + 1:].startswith("spectra"))]
+    if ngaps:
+        paragraphText += " Gaps in the sequence are denoted by solid black bars at their positions."
+    if bins:
+        paragraphText += " Predicted shifts in sequence identity are labeled below Spectra 3-mers"
+    sequenceNames = [
+        f[len(prefix) + 9:-4] for f in os.listdir(image_dir) if (os.path.isfile(os.path.join(image_dir, f)) and (f[len(prefix) + 1:].startswith("spectra")) and not f[len(prefix) + 1:].startswith("spectra_gff"))
+    ]
     if len(sequenceNames) > 50:
         logging.error(f"Too many contigs to tabulate, only the first 50 (alphabetically) will be output. ")
         paragraphText += f" There were too many sequences to reliably construct the report (file may be too large in the end). Only the first 50 alphabetically are reported here."
     story.append(Paragraph(paragraphText, styles["Normal"]))
     story.append(Spacer(1, 0.5 * inch))
+    story.append(imagePrep(path=paths[6], width=6.5 * inch, height=6.5 * inch))
 
     for sequence in sequenceNames:
+        story.append(PageBreak())
         paths = [os.path.join(image_dir, f"{prefix}_mass_{sequence}_high.png"), os.path.join(image_dir, f"{prefix}_spectra_{sequence}.png"), os.path.join(image_dir, f"{prefix}_mass_{sequence}_low.png")]
+        header = f"<b>Sequence {sequence}:</b> Over-abundant kmers, Spectra,"
+        if bins:
+            paths.append(os.path.join(image_dir, f"{prefix}_spectra_gff_{sequence}.png"))
+            header += " Predicted sequence motif shifts,"
+        header += " Under-abundant kmers"
         story.append(Paragraph(
             f"<b>Sequence {sequence}:</b>", styles["Normal"]))
         story.append(Spacer(1, 0.3 * inch))
@@ -100,11 +114,18 @@ def make_report(output_pdf, image_dir, mer, prefix):
         else:
             story.append(Paragraph(f"<b>ERROR:</b> Could not find file {paths[1]}.", styles["Normal"]))
         story.append(Spacer(1, 0.1 * inch))
+        if bins:
+            if os.path.exists(paths[3]):
+                row = Table([[Spacer(.003,.01 * inch),imagePrep(path=paths[3], width=6.6 * inch, height=4 * inch)]])
+                story.append(row)
+                #story.append(imagePrep(path=paths[3], width=6.5 * inch, height=4 * inch))
+            else:
+                story.append(Paragraph(f"<b>ERROR:</b> Could not find file {paths[3]}.", styles["Normal"]))
+            story.append(Spacer(1, 0.1 * inch))
         if os.path.exists(paths[2]):
             story.append(imagePrep(path = paths[2], width = 6.5 * inch, height = 4 * inch))
         else:
             story.append(Paragraph(f"<b>ERROR:</b> Could not find file {paths[2]}.", styles["Normal"]))
-        story.append(PageBreak())
     # Build PDF
     doc.build(story)
 
@@ -113,8 +134,10 @@ parser = argparse.ArgumentParser(description='Spectra pipeline report writer')
 parser.add_argument('-i', '--image-directory', dest='directory', type=str, help='Input image directory', required=True)
 parser.add_argument('-o', '--output', dest='output', type=str, help='Output pdf filename', default='spectra_report.pdf')
 parser.add_argument('-m', '--mer-size', dest='mer_size', type=int, help='kmer size ran.', default=20)
+parser.add_argument('-n', '--n-gaps', dest='ngaps', action='store_true', help='Label gaps in the assembly in the final report', default=False)
+parser.add_argument('-b', '--bin-identify', dest='bins', action='store_true', help='Label bin regions in the genome assembly', default=False)
 parser.add_argument('-p', '--prefix', dest='prefix', type=str, required=True)
 args=parser.parse_args()
 
-make_report(output_pdf=args.output,image_dir=args.directory,mer=args.mer_size, prefix=args.prefix)
+make_report(output_pdf=args.output,image_dir=args.directory,mer=args.mer_size, prefix=args.prefix, bins=args.bins, ngaps=args.ngaps)
 

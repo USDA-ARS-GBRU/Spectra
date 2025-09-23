@@ -10,6 +10,8 @@ parser.add_argument('-o', '--output-script', dest='output', default='spectra-pip
 parser.add_argument('-p', '--output-prefix', dest='prefix', default='spectra_pipeline', help='Output files prefix. A directory will be created with this name for storing images')
 parser.add_argument('-t', '--threads', dest='threads', type=int, help='processing threads [default 1]', default=1)
 parser.add_argument('-k', '--kmer-size', dest='mer_size', type=int, help='kmer size in query [default 20]', default=20)
+parser.add_argument('-n', '--n-gaps', dest='ngaps', action='store_true', help='Label gaps in the assembly in the final report', default=False)
+parser.add_argument('-b', '--bin-identify', dest='bins', action='store_true', help='Label bin regions in the genome assembly', default=False)
 parser.add_argument('--jellyfish-bloom', dest='jf_bloom', type=str, default='100M', help='Jellyfish2 count bloomfilter initial size [default 100M]')
 parser.add_argument('--jellyfish-path', dest='jf_path', type=str, default='jellyfish', help='Jellyfish2 path. Default assumes it is in your env [default jellyfish]')
 parser.add_argument('--python-callable', dest='python', type=str, default='python', help='python3 path. Default assumes it is in your env [default python]')
@@ -93,7 +95,15 @@ with open(args.output, 'w') as f:
 
     f.write("###### Generate Spectra\n")
     f.write(f"{args.python} {spectra_path}/spectra.py count -w {args.spectra_window} -s {args.spectra_window} -i {args.assembled} -o {args.prefix}_spectra.tsv -v\n")
-    f.write(f"{args.rscript} {spectra_path}/spectra-plot.r -i {args.prefix}_spectra.tsv -o {args.prefix}/{args.prefix}_spectra\n\n")
+    f.write(f"{args.rscript} {spectra_path}/spectra-plot.r -i {args.prefix}_spectra.tsv -o {args.prefix}/{args.prefix}_circular -c -a\n")
+    spectraString=f"{args.rscript} {spectra_path}/spectra-plot.r -i {args.prefix}_spectra.tsv -o {args.prefix}/{args.prefix}_spectra"
+    if args.bins:
+        f.write(f"{args.python} {spectra_path}/spectra.py analyze -i {args.prefix}_spectra.tsv -o {args.prefix}_spectra -v\n")
+        spectraString += f" -g {args.prefix}_spectra_bins.gff -t bin-region"
+    if args.ngaps:
+        f.write(f"{args.python} {spectra_path}/scripts/utils/n-counter.py -i {args.assembled} -o {args.prefix}_ngaps.gff -v\n")
+        spectraString += f" -j {args.prefix}_ngaps.gff"
+    f.write(spectraString+"\n\n")
 
     f.write(f"###### Collate information into PDF report\n")
-    f.write(f"{args.python} {spectra_path}/scripts/utils/pdfReport.py -i {args.prefix} -o {args.prefix}_report.pdf -m {args.mer_size} -p {args.prefix}\n")
+    f.write(f"{args.python} {spectra_path}/scripts/utils/pdfReport.py -i {args.prefix} -o {args.prefix}_report.pdf -m {args.mer_size} -p {args.prefix}{' -b' if args.bins else ''}\n")

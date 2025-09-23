@@ -69,7 +69,7 @@ parserPlot.add_argument('-v', '--verbose', dest='verbose', action='store_true', 
 
 parserAnalyze = subparsers.add_parser('analyze', description='Analyze spectra profiles')
 parserAnalyze.add_argument('-i', '--input', dest='input_tsv', type=str, help='Input spectra tsv', required=True)
-parserAnalyze.add_argument('-o', '--output', dest='output_tsv', type=str, help='Output spectra tsv', default=False)
+parserAnalyze.add_argument('-o', '--output', dest='output_prefix', type=str, help='Output prefix', default=False)
 parserAnalyze.add_argument('-p', '--penalty', dest='penalty', type=float, help='Ruptures breakpoint penalty criterion.', default=1000000)
 parserAnalyze.add_argument('-a', '--aligned', dest='is_aligned', action='store_true', help='Check for if input tsv comes from alignment or from sequence data', default=False)
 parserAnalyze.add_argument('-s', '--size', dest='size', type=int, help='Minimum windows to be considered a novel segment', default=5)

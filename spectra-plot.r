@@ -192,7 +192,8 @@ option_list <- list(
 	make_option(c("-a","--axes"), action="store_false", default=TRUE, help="Display axes text [default %default]", dest="axes"),
 	make_option(c("-k","--keep-scale"), action="store_true", default=FALSE, help="Incorporate scale [default %default]", dest="keep"),
 	make_option(c("-p","--palette"), type="character", default='base', help="Spectra color palette. Available palettes: base, dual [default %default]", dest="palette"),
-	make_option(c("-c","--circular"), action="store_true", default=FALSE, help="Invoke a circular, full genome plot [default %default]", dest="circular")
+	make_option(c("-c","--circular"), action="store_true", default=FALSE, help="Invoke a circular, full genome plot [default %default]", dest="circular"),
+	make_option(c("-j","--ngaps"), type="character", default=NULL, help="Label Ngap coordinates [default %default]", dest="ngaps")
 )
 options(error=traceback)
 parser = OptionParser(usage = "%prog -i triplet.tsv [options]",option_list=option_list)
@@ -221,7 +222,7 @@ if(!is.null(opt$gffFile)){
 	gff = read.gff(opt$gffFile)
 	# filter
 	if(!is.null(opt$gffTracks)){
-		gff = gff %>% filter(type%in%as.vector(opt$gffTracks))
+		gff = gff %>% filter(type%in%unlist(strsplit(opt$gffTracks,',')))
 	}
 	if(!is.null(opt$window_size)){
 		coords = strsplit(opt$window_size,",")
@@ -230,6 +231,17 @@ if(!is.null(opt$gffFile)){
 	}
 }
 
+# ngaps preparation
+ngaps = NULL
+if(!is.null(opt$ngaps)){
+    suppressPackageStartupMessages(library(ape))
+    ngaps = read.gff(opt$ngaps)
+    if(!is.null(opt$window_size)){
+		coords = strsplit(opt$window_size,",")
+		ngaps = ngaps %>% filter(start >= as.numeric(coords[[1]][1]))
+		ngaps = ngaps %>% filter(end <= as.numeric(coords[[1]][2]))
+	}
+}
 # trf preparation
 trf = NULL
 if(!is.null(opt$trfFile)){
@@ -335,9 +347,10 @@ if(opt$circular){
 		}
 		p = spectraPlot(temp.values, tripletColors, legend=opt$legend, facet=faceted, frequencies=opt$frequencies, ylims=opt$ylims, temp.range, opt$scale, opt$axes, paletteNames)
 		trackOffset=-0.03
-		if(!is.null(gff)){
-			p = p + geom_segment(data=gff%>%filter(seqid==seq), aes(x=start, xend=end, y=trackOffset, yend=trackOffset, color=strand), size=4) + scale_y_continuous(limits=c(-.06, 1), expand=c(0, 0))
-			trackOffset = trackOffset - .03
+		if(!is.null(ngaps)){
+		    if(any(ngaps$seqid==seq)){
+		        p = p + geom_rect(data=ngaps%>%filter(seqid==seq), aes(xmin=start-10000,xmax=end+10000, ymin=0,ymax=1), inherit.aes=FALSE, fill="black")
+		    }
 		}
 		if(!is.null(trf)){
 		    if(any(trf$Sequence==seq)){
@@ -345,6 +358,28 @@ if(opt$circular){
 			}
 			trackOffset = trackOffset - .03
 		}
+
 		ggsave(filename=seq.filename,device=output_file[2], width=temp.length, height=1+height.factor*2, units="in", dpi=opt$resolution, limitsize=F)
+
+		if(!is.null(gff)){
+		  if(length(gff[,1])>0){
+            height.factor=length(vars(gff$type))
+		    p = ggplot(gff%>%filter(seqid==seq), aes(xmin=start, xmax=end, ymin=0.1, ymax=0.2, fill=strand)) +
+		     geom_rect() +
+		     scale_y_continuous(limits=c(0.1, 0.2), expand=c(0,0)) + scale_x_continuous(expand=c(0,0))+
+		     theme_bw() +
+		     ylab("")+
+		     xlab("Position (bp)") +
+		     theme(
+		        legend.position = "none",
+		        axis.ticks.y=element_blank(),
+		        axis.text.y=element_blank(),
+		        strip.text.y = element_text(size = 4, colour = "black", angle = 90)
+		     )+facet_grid(rows=vars(type))
+
+		    ggsave(filename=paste0(output_file[1], '_gff_', seq, '.', output_file[2]),device=output_file[2], width=temp.length+.26, height=0.6+(0.35*height.factor), units="in", dpi=opt$resolution, limitsize=F)
+		  }
+		}
+		
 	}
 }
