@@ -86,7 +86,7 @@ def make_report(output_pdf, image_dir, mer, prefix, bins=False, ngaps=False):
     sequenceNames = [
         f[len(prefix) + 9:-4] for f in os.listdir(image_dir) if (os.path.isfile(os.path.join(image_dir, f)) and (f[len(prefix) + 1:].startswith("spectra")) and not f[len(prefix) + 1:].startswith("spectra_gff"))
     ]
-    if len(sequenceNames) > 50:
+    if len(sequenceNames) > args.to_include:
         logging.error(f"Too many contigs to tabulate, only the first 50 (alphabetically) will be output. ")
         paragraphText += f" There were too many sequences to reliably construct the report (file may be too large in the end). Only the first 50 alphabetically are reported here."
     story.append(Paragraph(paragraphText, styles["Normal"]))
@@ -137,6 +137,7 @@ parser.add_argument('-m', '--mer-size', dest='mer_size', type=int, help='kmer si
 parser.add_argument('-n', '--n-gaps', dest='ngaps', action='store_true', help='Label gaps in the assembly in the final report', default=False)
 parser.add_argument('-b', '--bin-identify', dest='bins', action='store_true', help='Label bin regions in the genome assembly', default=False)
 parser.add_argument('-p', '--prefix', dest='prefix', type=str, required=True)
+parser.add_argument('-x', '--max_output', dest='to_output', type=int, help='Contigs to include individual plots for, taken alphabetically.', default=50)
 args=parser.parse_args()
 
 make_report(output_pdf=args.output,image_dir=args.directory,mer=args.mer_size, prefix=args.prefix, bins=args.bins, ngaps=args.ngaps)
