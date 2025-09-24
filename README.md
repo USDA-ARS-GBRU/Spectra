@@ -46,6 +46,9 @@ Rscript Spectra/spectra-plot.r -i Hsap.tsv
 ### Chromosome 1 (NC_060925.1)
 ![Spectra logo](includes/example_data/Hsap.tsv_NC_060925.1.png)
 
+## Comparative k-mer analysis pipeline
+A k-mer profiling of raw/assembled data can be generated following the instructions on [PIPELINE.md](PIPELINE.md). This will run Spectra 3-mer counting and visualization as well as aggregate information about k-mer composition to a PDF report.
+
 ## Advanced usage
 
 ---
