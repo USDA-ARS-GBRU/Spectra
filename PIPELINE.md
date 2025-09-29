@@ -29,7 +29,7 @@ R 4.X packages necessary for analyses.
     * Raw data k-mers with fewer than 100 hits (-R 100) and assembled data k-mers with fewer than 2 hits (-A 2) removed prior to analyses. Setting the raw k-mer threshold below the X-coverage of the genome is advised (Total Raw Data / Expected Genome Size = NX coverage. E.G, 50 GBp Raw / 1 Gbp Genome size = 50X coverage)
     * Intermediate K-mer files are removed during analyses. Files can optionally be kept (-c) for use in other k-mer profiling.
     * *(OPTIONAL)* Sequence pattern shifts can additionally be plotted (-b). N-gaps on assembled 3-mer profiles can be highlighted (-n).
-
+    
 # Running the pipeline
 The `spectra-pipeline.sh` script can be run numerous ways. It can be run directly with `bash spectra-pipeline.sh`.
 If running using shared computing resources, modification for submitting the job to a manager such as slurm is required.
