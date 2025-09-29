@@ -17,3 +17,4 @@ dependencies:
 - r-ape = "5.8_1.*"
 - r-egg = "0.4.5.*"
 - r-svglite = "2.2.1.*"
+- kmer-jellyfish=2.3.1
