@@ -1,6 +1,9 @@
+name:
+  Spectra
 channels:
 - conda-forge
 - bioconda
+- defaults
 dependencies:
 - biopython=1.84
 - matplotlib=3.8.4

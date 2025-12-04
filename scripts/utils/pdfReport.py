@@ -86,7 +86,7 @@ def make_report(output_pdf, image_dir, mer, prefix, bins=False, ngaps=False):
     sequenceNames = [
         f[len(prefix) + 9:-4] for f in os.listdir(image_dir) if (os.path.isfile(os.path.join(image_dir, f)) and (f[len(prefix) + 1:].startswith("spectra")) and not f[len(prefix) + 1:].startswith("spectra_gff"))
     ]
-    if len(sequenceNames) > args.to_include:
+    if len(sequenceNames) > args.to_output:
         logging.error(f"Too many contigs to tabulate, only the first 50 (alphabetically) will be output. ")
         paragraphText += f" There were too many sequences to reliably construct the report (file may be too large in the end). Only the first 50 alphabetically are reported here."
     story.append(Paragraph(paragraphText, styles["Normal"]))
