@@ -93,7 +93,7 @@ def make_report(output_pdf, image_dir, mer, prefix, bins=False, ngaps=False):
     story.append(Spacer(1, 0.5 * inch))
     story.append(imagePrep(path=paths[6], width=6.5 * inch, height=6.5 * inch))
 
-    for sequence in sequenceNames:
+    for sequence in sequenceNames[0:args.to_output]:
         story.append(PageBreak())
         paths = [os.path.join(image_dir, f"{prefix}_mass_{sequence}_high.png"), os.path.join(image_dir, f"{prefix}_spectra_{sequence}.png"), os.path.join(image_dir, f"{prefix}_mass_{sequence}_low.png")]
         header = f"<b>Sequence {sequence}:</b> Over-abundant kmers, Spectra,"

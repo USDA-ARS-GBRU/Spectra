@@ -84,8 +84,12 @@ low_cut = int(math.ceil(n * p))
 high_cut = int(math.floor(n * (1 - p)))
 df_sorted = df.sort_values("reductionRank")
 df_extreme = pd.concat([df_sorted.iloc[:low_cut], df_sorted.iloc[high_cut:]])
-
-
+##
+xmin=min(df_sorted["RawCount"])
+xmax=max(df_sorted["RawCount"])
+ymin=min(df_sorted["AsmCount"])
+ymax=max(df_sorted["AsmCount"])
+##
 # Plotting functions
 sns.set(style="whitegrid")
 
@@ -94,6 +98,10 @@ plt.figure(figsize=(8, 8))
 plt.scatter(df["RawCount"], df["AsmCount"], s=1, alpha=0.2)
 plt.xscale("log")
 plt.yscale("log")
+##
+plt.xlim(xmin, xmax)
+plt.ylim(ymin, ymax)
+##
 plt.xlabel("Kmers in raw data")
 plt.ylabel("Kmers in assembly")
 plt.title(f"K={args.kmer_size} coverage (scatter)")
@@ -103,10 +111,15 @@ plt.close()
 # Scatter (extremes only)
 if not df_extreme.empty:
     plt.figure(figsize=(8, 8))
+    ## testing color schemes here
     plt.scatter(df_extreme["RawCount"], df_extreme["AsmCount"],
-                c=df_extreme["reduction"], cmap="bwr", s=2, alpha=0.6)
+                c=df_extreme["reduction"], cmap="coolwarm", s=2, alpha=0.6)
     plt.xscale("log")
     plt.yscale("log")
+    ##
+    plt.xlim(xmin, xmax)
+    plt.ylim(ymin, ymax)
+    ##
     plt.xlabel("Kmers in raw data")
     plt.ylabel("Kmers in assembly")
     plt.title(f"K={args.kmer_size} extreme kmers (±{args.percentile}%)")
