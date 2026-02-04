@@ -8,12 +8,13 @@ parser.add_argument('-r', '--raw', dest='raw', required=True, nargs='+',help='In
 parser.add_argument('-a', '--assembled', dest='assembled', required=True, help='Input fasta/gzipped fasta sequence assembly file')
 parser.add_argument('-o', '--output-script', dest='output', default='spectra-pipeline.sh', help='Output bash file')
 parser.add_argument('-p', '--output-prefix', dest='prefix', default='spectra_pipeline', help='Output files prefix. A directory will be created with this name for storing images')
-parser.add_argument('-t', '--threads', dest='threads', type=int, help='processing threads [default 1]', default=1)
+parser.add_argument('-t', '--threads', dest='threads', type=int, help='Processing threads for Jellyfish kmer counting', required=True)
 parser.add_argument('-k', '--kmer-size', dest='mer_size', type=int, help='kmer size in query [default 20]', default=20)
 parser.add_argument('-n', '--n-gaps', dest='ngaps', action='store_true', help='Label gaps in the assembly in the final report', default=False)
 parser.add_argument('-b', '--bin-identify', dest='bins', action='store_true', help='Label bin regions in the genome assembly', default=False)
 parser.add_argument('--jellyfish-bloom', dest='jf_bloom', type=str, default='100M', help='Jellyfish2 count bloomfilter initial size [default 100M]')
 parser.add_argument('--jellyfish-path', dest='jf_path', type=str, default='jellyfish', help='Jellyfish2 path. Default assumes it is in your env [default jellyfish]')
+parser.add_argument('--jellyfish-disk', dest='jf_disk', action='store_true', default=False, help='Use Jellyfish2 count disk parameter for large raw data files [default False]')
 parser.add_argument('--python-callable', dest='python', type=str, default='python', help='python3 path. Default assumes it is in your env [default python]')
 parser.add_argument('--spectra-callable', dest='spectra', type=str, default=None, help='Spectra path. If not set, automatically detected from this script')
 parser.add_argument('--rscript-callable', dest='rscript', type=str, default='Rscript', help='Rscript path. Default assumes it is in your env [default Rscript]')
@@ -61,13 +62,13 @@ with open(args.output, 'w') as f:
     if len(args.raw)>1:
         for rawIn in args.raw:
             if os.path.exists(rawIn):
-                f.write(f"{args.jf_path} count -t {args.threads} -s {args.jf_bloom} -m {args.mer_size} -o {args.prefix}_rcp_{os.path.basename(rawIn)}.jfc -C " + (f"<(zcat {rawIn})\n" if rawIn.endswith(".gz") else f"{rawIn}\n"))
+                f.write(f"{args.jf_path} count {'--disk ' if args.jf_disk else ''}-t {args.threads} -s {args.jf_bloom} -m {args.mer_size} -o {args.prefix}_rcp_{os.path.basename(rawIn)}.jfc -C " + (f"<(zcat {rawIn})\n" if rawIn.endswith(".gz") else f"{rawIn}\n"))
                 f.write(f"{args.jf_path} stats {args.prefix}_rcp_{os.path.basename(rawIn)}.jfc > {args.prefix}_rcp_{os.path.basename(rawIn)}.jstats\n")
             else:
                 print(f"Error: file {rawIn} not found. Excluded from script.")
         f.write(f"{args.jf_path} merge -o {args.prefix}_raw_count.jfc {args.prefix}_rcp_*.jfc\n")
     else:
-        f.write(f"{args.jf_path} count -t {args.threads} -s {args.jf_bloom} -m {args.mer_size} -o {args.prefix}_raw_count.jfc -C "+ (f"<(zcat {args.raw[0]})\n" if args.raw[0].endswith(".gz") else f"{args.raw[0]}\n"))
+        f.write(f"{args.jf_path} count {'--disk ' if args.jf_disk else ''}-t {args.threads} -s {args.jf_bloom} -m {args.mer_size} -o {args.prefix}_raw_count.jfc -C "+ (f"<(zcat {args.raw[0]})\n" if args.raw[0].endswith(".gz") else f"{args.raw[0]}\n"))
     f.write(f"{args.jf_path} stats {args.prefix}_raw_count.jfc > {args.prefix}_raw_count.jstats\n")
     f.write(f"{args.jf_path} dump -L {args.raw_min} -c {args.prefix}_raw_count.jfc |sort > {args.prefix}_raw.jdump\n")
     if args.clean:

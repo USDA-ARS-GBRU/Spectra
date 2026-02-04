@@ -111,10 +111,11 @@ circularPlot = function(values, tripletColors, legend=FALSE, frequencies=FALSE, 
 	}else{
 		p = ggplot() + geom_area(data=newValues, aes(fill=name, x=(Start+End)/2,y=value/(End-Start+1)), stat="identity", position="stack")
 	}
+	## figuring out why ylim is so high
 	if(ylims){
         p = p + scale_y_continuous(limits=c(0,1), expand=c(.5, .5))
 	}else{
-		p = p + scale_y_continuous(expand=c(0, 1))
+		p = p + scale_y_continuous(expand=c(.5, .5))
 	}
 	p = p + scale_fill_manual(values=tripletColors)
 	if(limit>0){
@@ -134,24 +135,19 @@ circularPlot = function(values, tripletColors, legend=FALSE, frequencies=FALSE, 
 	ylab("Proportion") +
 	baseTheme +
 	theme(
-		plot.margin = margin(t=0, l=0, b=0, r=0)
+	    axis.text.x = element_blank(),
+        axis.text.y = element_blank(),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.ticks = element_blank(),
+		plot.margin = margin(t=-270, l=-270, b=-270, r=-270, unit="pt")
 	)# +
 	#facet_grid(cols = vars(values$Sequence))
 	
 	if(!legend){
 		p = p + theme(legend.position = "none")
 	}
-	if(!axes){
-		p = p +
-		theme(
-			axis.text.x = element_blank(),
-			axis.text.y = element_blank(),
-			axis.title.x = element_blank(),
-			axis.title.y = element_blank(),
-			axis.ticks = element_blank(),
-			plot.margin = margin(t=0, l=-2.7, b=-2.7, r=0)
-		)
-	}
+	### testing new plot margins. -270pt is good for tested axes-less plots
 	p = p + coord_polar(start = 0)
 	return(p)
 }
@@ -178,10 +174,10 @@ option_list <- list(
 	make_option(c("-s", "--sequence"), type="character", default=NULL, help="Generate plot only from the sequences with names in \"A,B,C\" or by regular expression if -e flag specified. Otherwise generate a plot for each sequence id [default %default]", dest="sequences"),
 	make_option(c("-n", "--libraries"), type="character", default=NULL, help="Generate plot only from the libraries with names in \"A,B,C\" or by regular expression if -e flag specified. Otherwise generate a plot for each library id [default %default]", dest="libraries"),
 	make_option(c("-e", "--regex"), action="store_true", default=FALSE, help="Uses regex to subset sequence and library names [default %default]", dest="regex"),
-	make_option(c("-u", "--graphlength"), type="numeric", default=0, help="Designate the length of sequence to plot (for partial graphs in circular plot). 0 = No limit [default %default]", dest="length"),
-	make_option(c("-g", "--gff-file"), type="character", default=NULL, help="Generate plot of overlapping gene annotations from supplied gff. [default %default]", dest="gffFile"),
-	make_option(c("-t", "--gff-tracks"), type="character", default=NULL, help="Curate which gff types to use in types \"A,B,C\". [default %default]", dest="gffTracks"),
-	make_option(c("-z", "--trf-file"), type="character", default=NULL, help="Generate plot of overlapping trf annotations from supplied trf-tsv. [default %default]", dest="trfFile"),
+	make_option(c("--graphlength"), type="numeric", default=0, help="Designate the length of sequence to plot (for partial graphs in circular plot). 0 = No limit [default %default]", dest="length"),
+	make_option(c("--gff-file"), type="character", default=NULL, help="Generate plot of overlapping gene annotations from supplied gff. [default %default]", dest="gffFile"),
+	make_option(c("--gff-tracks"), type="character", default=NULL, help="Curate which gff types to use in types \"A,B,C\". [default %default]", dest="gffTracks"),
+	make_option(c("--trf-file"), type="character", default=NULL, help="Generate plot of overlapping trf annotations from supplied trf-tsv. [default %default]", dest="trfFile"),
 	make_option(c("-o","--output-prefix"), type="character", default=NULL, help="Output prefix [default %default]", dest="output_filename"),
 	make_option(c("-f","--output-format"), type="character", default="png", help="Output image format [default %default]", dest="output_type"),
 	make_option(c("-r","--resolution"), type="numeric", default=300, help="Plotting dpi resolution [default %default]", dest="resolution"),
@@ -191,9 +187,10 @@ option_list <- list(
 	make_option(c("-x","--scale"), type="numeric", default=1, help="Scale of x-axis. Plot each n (mb) over 1 inch [default %default]", dest="scale"),
 	make_option(c("-a","--axes"), action="store_false", default=TRUE, help="Display axes text [default %default]", dest="axes"),
 	make_option(c("-k","--keep-scale"), action="store_true", default=FALSE, help="Incorporate scale [default %default]", dest="keep"),
-	make_option(c("-p","--palette"), type="character", default='base', help="Spectra color palette. Available palettes: base, dual [default %default]", dest="palette"),
+	make_option(c("--palette"), type="character", default='base', help="Spectra color palette. Available palettes: base, dual [default %default]", dest="palette"),
 	make_option(c("-c","--circular"), action="store_true", default=FALSE, help="Invoke a circular, full genome plot [default %default]", dest="circular"),
-	make_option(c("-j","--ngaps"), type="character", default=NULL, help="Label Ngap coordinates [default %default]", dest="ngaps")
+	make_option(c("-t","--transparent"), action="store_true", default=FALSE, help="Use transparent image backgrounds if supported by format [default %default]", dest="transparent"),
+	make_option(c("--ngaps"), type="character", default=NULL, help="Label Ngap coordinates [default %default]", dest="ngaps")
 )
 options(error=traceback)
 parser = OptionParser(usage = "%prog -i triplet.tsv [options]",option_list=option_list)
@@ -312,11 +309,16 @@ for(colNum in 1:ncol(paletteOrderDF)){
 tripletColors=sapply(paletteNames,paletteBuilder)
 
 if(opt$circular){
+    ## Current functionality will disregard the axes flag and omit axes.
+
 	# write multiple plots in a single frame if sequence names are the same
-		seq.filename = paste0(output_file[1], '.', output_file[2])
-		p = circularPlot(values, tripletColors, legend=opt$legend, frequencies=opt$frequencies, ylims=opt$ylims, opt$axes, paletteNames, opt$length)
-		trackOffset=-0.03
-		ggsave(filename=seq.filename,device=output_file[2], width=10, height=10, units="in", dpi=opt$resolution, limitsize=F)
+    seq.filename = paste0(output_file[1], '.', output_file[2])
+    p = circularPlot(values, tripletColors, legend=opt$legend, frequencies=opt$frequencies, ylims=opt$ylims, opt$axes, paletteNames, opt$length)
+    trackOffset=-0.03
+    if(opt$transparent){
+        p = p + theme(panel.background = element_rect(fill='transparent'),plot.background = element_rect(fill='transparent', color=NA))
+    }
+    ggsave(filename=seq.filename,device=output_file[2], width=10, height=10, units="in", dpi=opt$resolution, limitsize=F, bg='transparent')
 }else{
 	# write multiple plots in a single frame if sequence names are the same
 	for(seq in seq.names){
@@ -358,7 +360,9 @@ if(opt$circular){
 			}
 			trackOffset = trackOffset - .03
 		}
-
+        if(opt$transparent){
+            p = p + theme(panel.background = element_rect(fill='transparent'),plot.background = element_rect(fill='transparent', color=NA))
+        }
 		ggsave(filename=seq.filename,device=output_file[2], width=temp.length, height=1+height.factor*2, units="in", dpi=opt$resolution, limitsize=F)
 
 		if(!is.null(gff)){
@@ -376,7 +380,9 @@ if(opt$circular){
 		        axis.text.y=element_blank(),
 		        strip.text.y = element_text(size = 4, colour = "black", angle = 90)
 		     )+facet_grid(rows=vars(type))
-
+            if(opt$transparent){
+                p = p + theme(panel.background = element_rect(fill='transparent'),plot.background = element_rect(fill='transparent', color=NA))
+            }
 		    ggsave(filename=paste0(output_file[1], '_gff_', seq, '.', output_file[2]),device=output_file[2], width=temp.length+.26, height=0.6+(0.35*height.factor), units="in", dpi=opt$resolution, limitsize=F)
 		  }
 		}

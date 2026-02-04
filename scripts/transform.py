@@ -65,10 +65,10 @@ def execute(args):
                 for index in range(0, len(group[1]), targetFactor):
                     subset = group[1].iloc[index:index+targetFactor]
                     newSubset = subset.sum().to_frame().transpose()
-                    newSubset['Library'][0] = group[0][0]
-                    newSubset['Sequence'][0] = group[0][1]
-                    newSubset['Start'][0] = subset['Start'].min()
-                    newSubset['End'][0] = subset['End'].max()
+                    newSubset[0, 'Library'] = group[0][0]
+                    newSubset[0, 'Sequence'] = group[0][1]
+                    newSubset[0, 'Start'] = subset['Start'].min()
+                    newSubset[0, 'End'] = subset['End'].max()
                     spectra = pd.concat([spectra, newSubset], ignore_index=True)
         spectra.reindex()
     frequencies = {}
