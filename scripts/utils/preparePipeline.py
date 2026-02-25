@@ -70,6 +70,7 @@ with open(args.output, 'w') as f:
     else:
         f.write(f"{args.jf_path} count {'--disk ' if args.jf_disk else ''}-t {args.threads} -s {args.jf_bloom} -m {args.mer_size} -o {args.prefix}_raw_count.jfc -C "+ (f"<(zcat {args.raw[0]})\n" if args.raw[0].endswith(".gz") else f"{args.raw[0]}\n"))
     f.write(f"{args.jf_path} stats {args.prefix}_raw_count.jfc > {args.prefix}_raw_count.jstats\n")
+    f.write(f"{args.jf_path} histo {args.prefix}_raw_count.jfc > {args.prefix}_raw_count.jhisto\n")
     f.write(f"{args.jf_path} dump -L {args.raw_min} -c {args.prefix}_raw_count.jfc |sort > {args.prefix}_raw.jdump\n")
     if args.clean:
         f.write(f"rm {args.prefix}_r*.jfc\n\n")
@@ -77,6 +78,7 @@ with open(args.output, 'w') as f:
     f.write("###### Run assembly jellyfish calculations, then dump and sort kmers above minimum.\n")
     f.write(f"{args.jf_path} count -t {args.threads} -s {args.jf_bloom} -m {args.mer_size} -o {args.prefix}_asm_count.jfc -C {args.assembled}\n")
     f.write(f"{args.jf_path} stats {args.prefix}_asm_count.jfc > {args.prefix}_asm_count.jstats\n")
+    f.write(f"{args.jf_path} histo {args.prefix}_asm_count.jfc > {args.prefix}_asm_count.jhisto\n")
     f.write(f"{args.jf_path} dump -L {args.asm_min} -c {args.prefix}_asm_count.jfc |sort > {args.prefix}_asm.jdump\n\n")
     if args.clean:
         f.write(f"rm {args.prefix}_asm_count.jfc\n\n")
