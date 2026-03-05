@@ -103,7 +103,7 @@ circularPlot = function(values, tripletColors, legend=FALSE, frequencies=FALSE, 
 			newValues,
 			current_values %>% mutate(Start=Start+current_max, End=End+current_max)
 		)
-		current_max = max(newValues$End)
+		current_max = max(newValues$End) + spacerLength
 	}
 	
 	if(frequencies){
@@ -152,7 +152,7 @@ circularPlot = function(values, tripletColors, legend=FALSE, frequencies=FALSE, 
 	return(p)
 }
 
-paletteBuilder = function(triplet,palette=opt$palette){
+paletteBuilder = function(triplet,palette='base'){
 	bases = c("A","C","G","T")
 	colors = switch(
 		palette,
@@ -307,7 +307,6 @@ for(colNum in 1:ncol(paletteOrderDF)){
 }
 
 tripletColors=sapply(paletteNames,paletteBuilder)
-
 if(opt$circular){
     ## Current functionality will disregard the axes flag and omit axes.
 

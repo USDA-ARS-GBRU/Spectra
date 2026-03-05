@@ -2,11 +2,10 @@
 
 import os
 import pandas as pd
-#import plotnine
-#from plotnine import ggplot, aes, geom_area, ggsave, theme, geom_segment, scale_y_continuous, scale_x_continuous, xlab, ylab, theme_bw, scale_fill_manual, themes
 import logging
 import spectral
 import plotly.express as px
+import matplotlib.pyplot as plt
 
 logging.basicConfig(level=logging.ERROR)
 logger = logging.getLogger()
@@ -82,22 +81,3 @@ def execute(args):
             fig = plotlyPlot(df_melted, query_colors, queries)
             fig.write_html(f"{library}_{sequence}_plot.html")
 
-            ### Plotly test
-
-### Plotnine ggplot port - potentially deprecating
-#            sequencePanda = group[1].melt(id_vars=validation[0], value_vars=validation[1])
-#            windowSize = sequencePanda['End'][0] - sequencePanda['Start'][0] - 1
-#            subplotSize = (min(sequencePanda['Start']), max(sequencePanda['End']))
-
-#            plot = ggplot(data=sequencePanda)
-#            plot += aes(fill='variable', x=(sequencePanda['End'] + sequencePanda['Start']) / 2, y=sequencePanda['value'] / (sequencePanda['End']-sequencePanda['Start']+1))
-#            plot += geom_area(mapping=aes(), stat="identity", position=plotnine.position_stack, outline_type='lower')
-#            plot += scale_fill_manual(values=plotColors)
-#            plot += scale_y_continuous(limits=(0, 1), expand=(0, 0))
-#            plot += scale_x_continuous(limits=subplotSize, expand=(0, 0))
-#            plot += xlab("Window Position (nucleotide)")
-#            plot += ylab("Proportion")
-#            plot += theme_bw()
-#            plot += theme(axis_title_x=themes.element_text(size=6), axis_title_y=themes.element_text(size=6), legend_text=themes.element_text(size=5), legend_key_size=5, legend_spacing=-3, axis_text_x=themes.element_text(angle=0, vjust=0.5), line=themes.element_blank(), axis_ticks=themes.element_line(), legend_title=themes.element_blank())
-#            ggsave(plot, filename=f"{library}_{sequence}.png", width=12, height=4, units="in", dpi=args.image_resolution, limitsize=False, verbose=False)
-### Plotnine ggplot port
