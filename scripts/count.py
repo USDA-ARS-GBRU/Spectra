@@ -63,7 +63,8 @@ def execute(args):
             headers = sequence_name.split("_") if args.libraries else [os.path.basename(args.input_sequence),
                                                                        sequence_name]
             sequenceLength = len(seq_record)
-            if sequenceLength >= args.chunk_size:
+            print(args.minimum_size,sequenceLength)
+            if sequenceLength >= args.minimum_size and sequenceLength >= args.chunk_size:
                 logging.info(f"Sequence {sequence_name} is large. Breaking into smaller segments")
                 indices = range(0, sequenceLength, args.chunk_size)
                 for sequenceIndex in indices:
@@ -75,7 +76,7 @@ def execute(args):
                         else:
                             tsvWriter.writerow(row)
                 logging.info(f"Sequence {sequence_name} windows written to output file")
-            else:
+            elif sequenceLength >= args.minimum_size:
                 for task in window_tasks(seq_record, queries_all, args.width, args.spacing, headers):
                     row = callableProcess(task)
                     if args.complement:

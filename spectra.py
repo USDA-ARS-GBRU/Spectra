@@ -27,6 +27,7 @@ parserCount.add_argument('-m', '--mer-size', dest='mer_size', type=int, help='km
 parserCount.add_argument('-v', '--verbose', dest='verbose', action='store_true', help='Verbose mode', default=False)
 parserCount.add_argument('-n', '--no-overlap', dest='overlap', action='store_false', help='Count base pairs in repetitive runs of nucleotides only once.', default=True)
 parserCount.add_argument('-k', '--chunk-size', dest='chunk_size', type=int, help='Max chunk size to work on', default=30000000)
+parserCount.add_argument('--minimum-size', dest='minimum_size', type=int, help='Minimum sequence size to include.', default=15000)
 
 parserQuery = subparsers.add_parser("query", description="Generate tsv file of spectra counts")
 parserQuery.add_argument('-i', '--input', dest='input_sequence', type=str, help='Input sequence file', required=True)

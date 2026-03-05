@@ -12,6 +12,7 @@ parser.add_argument('-t', '--threads', dest='threads', type=int, help='Processin
 parser.add_argument('-k', '--kmer-size', dest='mer_size', type=int, help='kmer size in query [default 20]', default=20)
 parser.add_argument('-n', '--n-gaps', dest='ngaps', action='store_true', help='Label gaps in the assembly in the final report', default=False)
 parser.add_argument('-b', '--bin-identify', dest='bins', action='store_true', help='Label bin regions in the genome assembly', default=False)
+parser.add_argument('-m', '--minimum-sequence-size', dest='minimum_size', type=int, help='Minimum sequence size to include in reports', default=100000)
 parser.add_argument('--jellyfish-bloom', dest='jf_bloom', type=str, default='100M', help='Jellyfish2 count bloomfilter initial size [default 100M]')
 parser.add_argument('--jellyfish-path', dest='jf_path', type=str, default='jellyfish', help='Jellyfish2 path. Default assumes it is in your env [default jellyfish]')
 parser.add_argument('--jellyfish-disk', dest='jf_disk', action='store_true', default=False, help='Use Jellyfish2 count disk parameter for large raw data files [default False]')
@@ -93,11 +94,11 @@ with open(args.output, 'w') as f:
         f.write(f"rm {args.prefix}_asm.jdump {args.prefix}_raw.jdump\n\n")
 
     f.write(f"###### Generate and plot localization of extreme kmers\n")
-    f.write(f"{args.python} {spectra_path}/scripts/utils/mass-query.py -i {args.assembled} -q {args.prefix}_kmer_rank.tsv -m {args.mer_size} -o {args.prefix}_mass_query.tsv -c -w {args.mq_window} -s {args.mq_window} -v\n")
+    f.write(f"{args.python} {spectra_path}/scripts/utils/mass-query.py -i {args.assembled} -q {args.prefix}_kmer_rank.tsv -m {args.mer_size} -o {args.prefix}_mass_query.tsv -c -w {args.mq_window} -s {args.mq_window} --minimum-size {args.minimum_size} -v\n")
     f.write(f"{args.rscript} {spectra_path}/scripts/utils/mass-query-plot.r -i {args.prefix}_mass_query.tsv -o {args.prefix}/{args.prefix}_mass\n\n")
 
     f.write("###### Generate Spectra\n")
-    f.write(f"{args.python} {spectra_path}/spectra.py count -w {args.spectra_window} -s {args.spectra_window} -i {args.assembled} -o {args.prefix}_spectra.tsv -v\n")
+    f.write(f"{args.python} {spectra_path}/spectra.py count -w {args.spectra_window} -s {args.spectra_window} -i {args.assembled} -o {args.prefix}_spectra.tsv --minimum-size {args.minimum_size} -v\n")
     f.write(f"{args.rscript} {spectra_path}/spectra-plot.r -i {args.prefix}_spectra.tsv -o {args.prefix}/{args.prefix}_circular -c -a\n")
     spectraString=f"{args.rscript} {spectra_path}/spectra-plot.r -i {args.prefix}_spectra.tsv -o {args.prefix}/{args.prefix}_spectra"
     if args.bins:

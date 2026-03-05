@@ -55,6 +55,7 @@ parser.add_argument('-e', '--percentile-keep', type=int, dest='percentile_keep',
 parser.add_argument('-k', '--chunk-size', dest='chunk_size', type=int, help='Max chunk size to work on [default 30000000]', default=30000000)
 parser.add_argument('-x', '--inverse', action='store_true',
                     help='Tabulate the inverse (for large kmer lists with-respect-to window sizes)')
+parser.add_argument('--minimum-size', dest='minimum_size', type=int, help='Minimum sequence size to include.', default=15000)
 
 args = parser.parse_args()
 
