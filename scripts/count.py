@@ -63,7 +63,6 @@ def execute(args):
             headers = sequence_name.split("_") if args.libraries else [os.path.basename(args.input_sequence),
                                                                        sequence_name]
             sequenceLength = len(seq_record)
-            print(args.minimum_size,sequenceLength)
             if sequenceLength >= args.minimum_size and sequenceLength >= args.chunk_size:
                 logging.info(f"Sequence {sequence_name} is large. Breaking into smaller segments")
                 indices = range(0, sequenceLength, args.chunk_size)

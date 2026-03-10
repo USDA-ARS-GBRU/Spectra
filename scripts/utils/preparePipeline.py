@@ -5,7 +5,7 @@ import os
 # CLI arguments
 parser = argparse.ArgumentParser(description="Prepare inputs for specta pipeline, and generate a bash script for running.")
 parser.add_argument('-r', '--raw', dest='raw', required=True, nargs='+',help='Input raw fasta/fastq read file(s). These can be gzipped, but must end in ".gz". If multiple, separate with spaces')
-parser.add_argument('-a', '--assembled', dest='assembled', required=True, help='Input fasta/gzipped fasta sequence assembly file')
+parser.add_argument('-a', '--assembled', dest='assembled', required=True, help='Input fasta/bgzipped fasta sequence assembly file')
 parser.add_argument('-o', '--output-script', dest='output', default='spectra-pipeline.sh', help='Output bash file')
 parser.add_argument('-p', '--output-prefix', dest='prefix', default='spectra_pipeline', help='Output files prefix. A directory will be created with this name for storing images')
 parser.add_argument('-t', '--threads', dest='threads', type=int, help='Processing threads for Jellyfish kmer counting', required=True)
@@ -19,9 +19,10 @@ parser.add_argument('--jellyfish-disk', dest='jf_disk', action='store_true', def
 parser.add_argument('--python-callable', dest='python', type=str, default='python', help='python3 path. Default assumes it is in your env [default python]')
 parser.add_argument('--spectra-callable', dest='spectra', type=str, default=None, help='Spectra path. If not set, automatically detected from this script')
 parser.add_argument('--rscript-callable', dest='rscript', type=str, default='Rscript', help='Rscript path. Default assumes it is in your env [default Rscript]')
+parser.add_argument('--time', dest='time', action='store_true', default=False, help='Write timestamps for program progress [default False]')
 parser.add_argument('-R', '--raw-min', dest='raw_min', type=int, default=100, help='Jellyfish2 raw kmer minimum count to retain [default 100]')
 parser.add_argument('-A', '--asm-min', dest='asm_min', type=int, default=2, help='Jellyfish2 assembly kmer minimum count to retain [default 2]')
-parser.add_argument('-m', '--mq-window', dest='mq_window', type=int, default=200000, help='Window and spacing width for kmer mass-query.py localization [default 200000]')
+parser.add_argument('-q', '--mq-window', dest='mq_window', type=int, default=200000, help='Window and spacing width for kmer mass-query.py localization [default 200000]')
 parser.add_argument('-w', '--spectra-window', dest='spectra_window', type=int, default=10000, help='Window and spacing width for spectra.py K=3 localization [default 10000]')
 parser.add_argument('-c', '--clean-workspace', dest='clean', action='store_false', help='Clean workspace as files are processed. Jellyfish kmer counts are very large. By default, these files are removed after processing.', default=True)
 args = parser.parse_args()
@@ -47,6 +48,10 @@ if stop:
     print("Missing input files. Please check these files.")
     exit()
 
+if args.assembled.endswith("gz") or args.assembled.endswith("gzip"):
+    print(f"WARNING: Assembly file ending in 'gz/gzip' detected. Non-BGZF compression will cause crashing, see https://biopython.org/docs/latest/Tutorial/chapter_seqio.html#sec-seqio-index-bgzf for details.")
+
+
 with open(args.output, 'w') as f:
     f.write(
         "#!/bin/bash\n"
@@ -60,6 +65,8 @@ with open(args.output, 'w') as f:
         "###### Run raw jellyfish calculations, then dump and sort kmers above minimum.\n"
     )
 
+    if args.time:
+        f.write(f"echo 'Starting {args.mer_size}-mer procressing on raw data at:'\ndate\n")
     if len(args.raw)>1:
         for rawIn in args.raw:
             if os.path.exists(rawIn):
@@ -73,31 +80,49 @@ with open(args.output, 'w') as f:
     f.write(f"{args.jf_path} stats {args.prefix}_raw_count.jfc > {args.prefix}_raw_count.jstats\n")
     f.write(f"{args.jf_path} histo {args.prefix}_raw_count.jfc > {args.prefix}_raw_count.jhisto\n")
     f.write(f"{args.jf_path} dump -L {args.raw_min} -c {args.prefix}_raw_count.jfc |sort > {args.prefix}_raw.jdump\n")
+    if args.time:
+        f.write(f"echo 'Ending {args.mer_size}-mer procressing on raw data at:'\ndate\n\n")
+
     if args.clean:
         f.write(f"rm {args.prefix}_r*.jfc\n\n")
 
     f.write("###### Run assembly jellyfish calculations, then dump and sort kmers above minimum.\n")
+    if args.time:
+        f.write(f"echo 'Starting {args.mer_size}-mer procressing on assembly data at:'\ndate\n")
     f.write(f"{args.jf_path} count -t {args.threads} -s {args.jf_bloom} -m {args.mer_size} -o {args.prefix}_asm_count.jfc -C {args.assembled}\n")
     f.write(f"{args.jf_path} stats {args.prefix}_asm_count.jfc > {args.prefix}_asm_count.jstats\n")
     f.write(f"{args.jf_path} histo {args.prefix}_asm_count.jfc > {args.prefix}_asm_count.jhisto\n")
-    f.write(f"{args.jf_path} dump -L {args.asm_min} -c {args.prefix}_asm_count.jfc |sort > {args.prefix}_asm.jdump\n\n")
+    f.write(f"{args.jf_path} dump -L {args.asm_min} -c {args.prefix}_asm_count.jfc |sort > {args.prefix}_asm.jdump\n")
+    if args.time:
+        f.write(f"echo 'Ending {args.mer_size}-mer procressing on assembly data at:'\ndate\n\n")
+
     if args.clean:
         f.write(f"rm {args.prefix}_asm_count.jfc\n\n")
 
-    f.write(f"mkdir {args.prefix}\n\n")
-
     f.write(f"###### Generate kmer report files and figures\n")
+    if args.time:
+        f.write(f"echo 'Starting k-mer comparison and ranking at:'\ndate\n")
     f.write(f"{args.python} {spectra_path}/scripts/utils/kmerComp.py -r {args.prefix}_raw.jdump -a {args.prefix}_asm.jdump -k {args.mer_size} -o {args.prefix}/{args.prefix}_kmer_comp -s {kmer_sample_size} -p {percentile_keep} -v\n")
-    f.write(f"{args.python} {spectra_path}/scripts/utils/kmerRank.py -r {args.prefix}_raw.jdump -a {args.prefix}_asm.jdump -o {args.prefix}_kmer_rank.tsv -c {chunk_size} -e {percentile_keep} -v\n\n")
+    f.write(f"{args.python} {spectra_path}/scripts/utils/kmerRank.py -r {args.prefix}_raw.jdump -a {args.prefix}_asm.jdump -o {args.prefix}_kmer_rank.tsv -c {chunk_size} -e {percentile_keep} -v\n")
+    if args.time:
+        f.write(f"echo 'Ending k-mer comparison and ranking at:'\ndate\n\n")
 
     if args.clean:
         f.write(f"rm {args.prefix}_asm.jdump {args.prefix}_raw.jdump\n\n")
 
     f.write(f"###### Generate and plot localization of extreme kmers\n")
+    if args.time:
+        f.write(f"echo 'Starting {args.mer_size}-mer localization at:'\ndate\n")
     f.write(f"{args.python} {spectra_path}/scripts/utils/mass-query.py -i {args.assembled} -q {args.prefix}_kmer_rank.tsv -m {args.mer_size} -o {args.prefix}_mass_query.tsv -c -w {args.mq_window} -s {args.mq_window} --minimum-size {args.minimum_size} -v\n")
-    f.write(f"{args.rscript} {spectra_path}/scripts/utils/mass-query-plot.r -i {args.prefix}_mass_query.tsv -o {args.prefix}/{args.prefix}_mass\n\n")
+    f.write(f"{args.rscript} {spectra_path}/scripts/utils/mass-query-plot.r -i {args.prefix}_mass_query.tsv -o {args.prefix}/{args.prefix}_mass\n")
+    if args.time:
+        f.write(f"echo 'Ending {args.mer_size}-mer localization at:'\ndate\n\n")
+    else:
+        f.write(f"\n")
 
     f.write("###### Generate Spectra\n")
+    if args.time:
+        f.write(f"echo 'Starting 3-mer localization at:'\ndate\n")
     f.write(f"{args.python} {spectra_path}/spectra.py count -w {args.spectra_window} -s {args.spectra_window} -i {args.assembled} -o {args.prefix}_spectra.tsv --minimum-size {args.minimum_size} -v\n")
     f.write(f"{args.rscript} {spectra_path}/spectra-plot.r -i {args.prefix}_spectra.tsv -o {args.prefix}/{args.prefix}_circular -c -a\n")
     spectraString=f"{args.rscript} {spectra_path}/spectra-plot.r -i {args.prefix}_spectra.tsv -o {args.prefix}/{args.prefix}_spectra"
@@ -107,7 +132,15 @@ with open(args.output, 'w') as f:
     if args.ngaps:
         f.write(f"{args.python} {spectra_path}/scripts/utils/n-counter.py -i {args.assembled} -o {args.prefix}_ngaps.gff -v\n")
         spectraString += f" -j {args.prefix}_ngaps.gff"
-    f.write(spectraString+"\n\n")
+    f.write(spectraString+"\n")
+    if args.time:
+        f.write(f"echo 'Ending 3-mer localization at:'\ndate\n\n")
+    else:
+        f.write(f"\n")
 
     f.write(f"###### Collate information into PDF report\n")
+    if args.time:
+        f.write(f"echo 'Starting PDF report generation at:'\ndate\n")
     f.write(f"{args.python} {spectra_path}/scripts/utils/pdfReport.py -i {args.prefix} -o {args.prefix}_report.pdf -m {args.mer_size} -p {args.prefix}{' -b' if args.bins else ''}\n")
+    if args.time:
+        f.write(f"echo 'Ending PDF report generation at:'\ndate\n")
