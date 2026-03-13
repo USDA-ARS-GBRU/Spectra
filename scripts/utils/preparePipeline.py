@@ -146,7 +146,7 @@ with open(args.output, 'w') as f:
     f.write(f"###### Generate and plot localization of extreme kmers\n")
     if args.time:
         f.write(f"echo 'Starting {variables['mer_size']}-mer localization at:'\ndate\n")
-    f.write(f"{variables['python']} {spectra_path}/scripts/utils/mass-query.py -i {variables['assembled']} -q {variables['prefix']}_kmer_rank.tsv -m {variables['mer_size']} -o {variables['prefix']}_mass_query.tsv -c -w {variables['mq_window']} -s {variables['mq_window']} --minimum-size {variables['minimum_size']} -v\n")
+    f.write(f"{variables['python']} {spectra_path}/scripts/utils/mass-query.py -i {variables['assembled']} -q {variables['prefix']}_kmer_rank.tsv -m {variables['mer_size']} -o {variables['prefix']}_mass_query.tsv -c -w {variables['mq_window']} -t {variables['threads']} -s {variables['mq_window']} --minimum-size {variables['minimum_size']} -v\n")
     f.write(f"{variables['rscript']} {spectra_path}/scripts/utils/mass-query-plot.r -i {variables['prefix']}_mass_query.tsv -o {variables['prefix']}/{variables['prefix']}_mass\n")
     if args.time:
         f.write(f"echo 'Ending {variables['mer_size']}-mer localization at:'\ndate\n\n")
