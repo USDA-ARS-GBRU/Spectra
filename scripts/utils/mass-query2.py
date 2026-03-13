@@ -8,7 +8,7 @@ import logging
 from collections import Counter, defaultdict
 import multiprocessing
 
-# Fast reverse complement using translation table
+# Fast reverse-complement using translation table
 RC_TRANS = str.maketrans("ACGTacgt", "TGCAtgca")
 def rc(sequence):
     return sequence.translate(RC_TRANS)[::-1]
