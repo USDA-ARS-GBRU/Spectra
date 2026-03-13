@@ -85,10 +85,10 @@ high_cut = int(math.floor(n * (1 - p)))
 df_sorted = df.sort_values("reductionRank")
 df_extreme = pd.concat([df_sorted.iloc[:low_cut], df_sorted.iloc[high_cut:]])
 ##
-xmin=min(df_sorted["RawCount"])
-xmax=max(df_sorted["RawCount"])
-ymin=min(df_sorted["AsmCount"])
-ymax=max(df_sorted["AsmCount"])
+xmin = min(df_sorted["RawCount"])
+xmax = max(df_sorted["RawCount"])
+ymin = min(df_sorted["AsmCount"])
+ymax = max(df_sorted["AsmCount"])
 ##
 # Plotting functions
 sns.set(style="whitegrid")
