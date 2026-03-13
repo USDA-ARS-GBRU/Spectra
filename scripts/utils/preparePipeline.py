@@ -79,14 +79,12 @@ with open(args.output, 'w') as f:
             f.write(f'{name}="{args.__dict__[name]}"\n')
         for i in range(len(args.raw)):
             f.write(f'raw_{i}="{args.raw[i]}"\n')
-        variables['raw'] = ["${raw_" + f"{i}" + "}" for i in range(len(args.raw))]
+        variables['raw'] = [("${raw_" + f"{i}" + "}", any([args.raw[i].endswith("gz"), args.raw[i].endswith("gzip")])) for i in range(len(args.raw))]
         f.write("#####\n\n")
     else:
         variables = {name: args.__dict__[name] for name in variable_names}
-        variables['raw'] = args.raw
-
-    print(variables)
-
+        variables['raw'] = [(i, any([i.endswith("gz"), i.endswith("gzip")])) for i in args.raw]
+    print(variables['raw'])
     f.write("##### Image output directory.\n")
     f.write(f"mkdir {variables['prefix']}\n\n")
 
@@ -96,11 +94,11 @@ with open(args.output, 'w') as f:
         f.write(f"echo 'Starting {variables['mer_size']}-mer processing on raw data at:'\ndate\n")
     if len(variables['raw'])>1:
         for i in range(len(variables['raw'])):
-            f.write(f"{variables['jf_path']} count {'--disk ' if args.jf_disk else ''}-t {variables['threads']} -s {variables['jf_bloom']} -m {variables['mer_size']} -o {variables['prefix']}_rcp_{os.path.basename(variables['raw'][i])}.jfc -C " + (f"<(zcat {variables['raw'][i]})\n" if variables['raw'][i].endswith(".gz") else f"{variables['raw'][i]}\n"))
-            f.write(f"{variables['jf_path']} stats {variables['prefix']}_rcp_{os.path.basename(variables['raw'][i])}.jfc > {variables['prefix']}_rcp_{os.path.basename(variables['raw'][i])}.jstats\n")
+            f.write(f"{variables['jf_path']} count {'--disk ' if args.jf_disk else ''}-t {variables['threads']} -s {variables['jf_bloom']} -m {variables['mer_size']} -o {variables['prefix']}_rcp_{os.path.basename(variables['raw'][i][0])}.jfc -C " + (f"<(zcat {variables['raw'][i][0]})\n" if variables['raw'][i][1] else f"{variables['raw'][i][0]}\n"))
+            f.write(f"{variables['jf_path']} stats {variables['prefix']}_rcp_{os.path.basename(variables['raw'][i][0])}.jfc > {variables['prefix']}_rcp_{os.path.basename(variables['raw'][i][0])}.jstats\n")
         f.write(f"{variables['jf_path']} merge -o {variables['prefix']}_raw_count.jfc {variables['prefix']}_rcp_*.jfc\n")
     else:
-        f.write(f"{variables['jf_path']} count {'--disk ' if args.jf_disk else ''}-t {variables['threads']} -s {variables['jf_bloom']} -m {variables['mer_size']} -o {variables['prefix']}_raw_count.jfc -C "+ (f"<(zcat {variables['raw'][0]})\n" if variables['raw'][0].endswith(".gz") else f"{variables['raw'][0]}\n"))
+        f.write(f"{variables['jf_path']} count {'--disk ' if args.jf_disk else ''}-t {variables['threads']} -s {variables['jf_bloom']} -m {variables['mer_size']} -o {variables['prefix']}_raw_count.jfc -C "+ (f"<(zcat {variables['raw'][0][0]})\n" if variables['raw'][0][1] else f"{variables['raw'][0][0]}\n"))
     f.write(f"{variables['jf_path']} stats {variables['prefix']}_raw_count.jfc > {variables['prefix']}_raw_count.jstats\n")
     f.write(f"{variables['jf_path']} histo {variables['prefix']}_raw_count.jfc > {variables['prefix']}_raw_count.jhisto\n")
     f.write(f"{variables['jf_path']} dump -L {variables['raw_min']} -c {variables['prefix']}_raw_count.jfc |sort > {variables['prefix']}_raw.jdump\n")
