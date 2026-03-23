@@ -2,6 +2,7 @@
 import argparse
 import os
 import sys
+
 # CLI arguments
 parser = argparse.ArgumentParser(description="Prepare inputs for specta pipeline, and generate a bash script for running.")
 parser.add_argument('-r', '--raw', dest='raw', required=True, nargs='+',help='Input raw fasta/fastq read file(s). These can be gzipped, but must end in ".gz". If multiple, separate with spaces')
@@ -31,7 +32,7 @@ parser.add_argument('--keep', dest='keep', action='store_false', help='Clean wor
 parser.add_argument('--variable-paths', dest='variable', action='store_true', help='Code will use variables for naming of analysis files. Default is hard paths.', default=False)
 args = parser.parse_args()
 
-spectra_path = args.spectra if args.spectra else os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+spectra_path = args.spectra if args.spectra else os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if spectra_path.endswith('/'):
     spectra_path = spectra_path[:-1]
 
@@ -48,7 +49,7 @@ if stop:
     print("Missing input files. Please check these files.")
     exit()
 
-if args.assembled.endswith("gz") or args.assembled.endswith("gzip"):
+if args.assembled.lower().endswith(("gz","gzip")):
     print(f"WARNING: Assembly file ending in 'gz/gzip' detected. Non-BGZF compression will cause crashing, see https://biopython.org/docs/latest/Tutorial/chapter_seqio.html#sec-seqio-index-bgzf for details.")
 
 # Begin writing the script file
@@ -79,14 +80,13 @@ with open(args.output, 'w') as f:
             f.write(f'{name}="{args.__dict__[name]}"\n')
         for i in range(len(args.raw)):
             f.write(f'raw_{i}="{args.raw[i]}"\n')
-        variables['raw'] = [("${raw_" + f"{i}" + "}", any([args.raw[i].endswith("gz"), args.raw[i].endswith("gzip")])) for i in range(len(args.raw))]
+        variables['raw'] = [("${raw_" + f"{i}" + "}", args.raw[i].lower().endswith((".gz", ".gzip"))) for i in range(len(args.raw))]
         f.write("#####\n\n")
     else:
         variables = {name: args.__dict__[name] for name in variable_names}
-        variables['raw'] = [(i, any([i.endswith("gz"), i.endswith("gzip")])) for i in args.raw]
-    print(variables['raw'])
+        variables['raw'] = [(i, i.lower().endswith(("gz", "gzip"))) for i in args.raw]
     f.write("##### Image output directory.\n")
-    f.write(f"mkdir {variables['prefix']}\n\n")
+    f.write(f"mkdir -p {variables['prefix']}\n\n")
 
     # Begin writing raw jellyfish code
     f.write("###### Run raw jellyfish calculations, then dump and sort kmers above minimum.\n")
