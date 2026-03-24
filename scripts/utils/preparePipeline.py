@@ -91,7 +91,8 @@ with open(args.output, 'w') as f:
     # Begin writing raw jellyfish code
     f.write("###### Run raw jellyfish calculations, then dump and sort kmers above minimum.\n")
     if args.time:
-        f.write(f"echo 'Starting {variables['mer_size']}-mer processing on raw data at:'\ndate\n")
+        #f.write(f"echo 'Starting {variables['mer_size']}-mer processing on raw data at:'\ndate\n")
+        f.write(f'echo "Starting {variables['mer_size']}-mer processing on raw data at:"\ndate\n')
     if len(variables['raw'])>1:
         for i in range(len(variables['raw'])):
             f.write(f"{variables['jf_path']} count {'--disk ' if args.jf_disk else ''}-t {variables['threads']} -s {variables['jf_bloom']} -m {variables['mer_size']} -o {variables['prefix']}_rcp_{os.path.basename(variables['raw'][i][0])}.jfc -C " + (f"<(zcat {variables['raw'][i][0]})\n" if variables['raw'][i][1] else f"{variables['raw'][i][0]}\n"))
@@ -103,7 +104,8 @@ with open(args.output, 'w') as f:
     f.write(f"{variables['jf_path']} histo {variables['prefix']}_raw_count.jfc > {variables['prefix']}_raw_count.jhisto\n")
     f.write(f"{variables['jf_path']} dump -L {variables['raw_min']} -c {variables['prefix']}_raw_count.jfc |sort > {variables['prefix']}_raw.jdump\n")
     if args.time:
-        f.write(f"echo 'Ending {variables['mer_size']}-mer processing on raw data at:'\ndate\n\n")
+        #f.write(f"echo 'Ending {variables['mer_size']}-mer processing on raw data at:'\ndate\n\n")
+        f.write(f'echo "Ending {variables['mer_size']}-mer processing on raw data at:"\ndate\n\n')
 
     if args.keep:
         f.write(f"rm {variables['prefix']}_r*.jfc\n\n")
@@ -113,13 +115,15 @@ with open(args.output, 'w') as f:
     # Begin writing assembly jellyfish code
     f.write("###### Run assembly jellyfish calculations, then dump and sort kmers above minimum.\n")
     if args.time:
-        f.write(f"echo 'Starting {variables['mer_size']}-mer processing on assembly data at:'\ndate\n")
+        #f.write(f"echo 'Starting {variables['mer_size']}-mer processing on assembly data at:'\ndate\n")
+        f.write(f'echo "Starting {variables['mer_size']}-mer processing on assembly data at:"\ndate\n')
     f.write(f"{variables['jf_path']} count -t {variables['threads']} -s {variables['jf_bloom']} -m {variables['mer_size']} -o {variables['prefix']}_asm_count.jfc -C {variables['assembled']}\n")
     f.write(f"{variables['jf_path']} stats {variables['prefix']}_asm_count.jfc > {variables['prefix']}_asm_count.jstats\n")
     f.write(f"{variables['jf_path']} histo {variables['prefix']}_asm_count.jfc > {variables['prefix']}_asm_count.jhisto\n")
     f.write(f"{variables['jf_path']} dump -L {variables['asm_min']} -c {variables['prefix']}_asm_count.jfc |sort > {variables['prefix']}_asm.jdump\n")
     if args.time:
-        f.write(f"echo 'Ending {variables['mer_size']}-mer processing on assembly data at:'\ndate\n\n")
+        #f.write(f"echo 'Ending {variables['mer_size']}-mer processing on assembly data at:'\ndate\n\n")
+        f.write(f'echo "Ending {variables['mer_size']}-mer processing on assembly data at:"\ndate\n\n')
 
     if args.keep:
         f.write(f"rm {variables['prefix']}_asm_count.jfc\n\n")
@@ -143,11 +147,13 @@ with open(args.output, 'w') as f:
     # Begin writing localization code
     f.write(f"###### Generate and plot localization of extreme kmers\n")
     if args.time:
-        f.write(f"echo 'Starting {variables['mer_size']}-mer localization at:'\ndate\n")
-    f.write(f"{variables['python']} {spectra_path}/scripts/utils/mass-query.py -i {variables['assembled']} -q {variables['prefix']}_kmer_rank.tsv -m {variables['mer_size']} -o {variables['prefix']}_mass_query.tsv -c -w {variables['mq_window']} -t {variables['threads']} -s {variables['mq_window']} --minimum-size {variables['minimum_size']} -v\n")
+        #f.write(f"echo 'Starting {variables['mer_size']}-mer localization at:'\ndate\n")
+        f.write(f'echo "Starting {variables['mer_size']}-mer localization at:"\ndate\n')
+    f.write(f"{variables['python']} {spectra_path}/scripts/utils/mass-query.py -i {variables['assembled']} -q {variables['prefix']}_kmer_rank.tsv -m {variables['mer_size']} -o {variables['prefix']}_mass_query.tsv -c -w {variables['mq_window']} -t {variables['threads']} -s {variables['mq_window']} --minimum-size {variables['minimum_size']} -e {variables['percentile']} -v\n")
     f.write(f"{variables['rscript']} {spectra_path}/scripts/utils/mass-query-plot.r -i {variables['prefix']}_mass_query.tsv -o {variables['prefix']}/{variables['prefix']}_mass -u\n")
     if args.time:
-        f.write(f"echo 'Ending {variables['mer_size']}-mer localization at:'\ndate\n\n")
+        #f.write(f"echo 'Ending {variables['mer_size']}-mer localization at:'\ndate\n\n")
+        f.write(f'echo "Ending {variables['mer_size']}-mer localization at:"\ndate\n\n')
     else:
         f.write(f"\n")
 
@@ -160,10 +166,10 @@ with open(args.output, 'w') as f:
     spectraString=f"{variables['rscript']} {spectra_path}/spectra-plot.r -i {variables['prefix']}_spectra.tsv -o {variables['prefix']}/{variables['prefix']}_spectra"
     if args.bins:
         f.write(f"{variables['python']} {spectra_path}/spectra.py analyze -i {variables['prefix']}_spectra.tsv -o {variables['prefix']}_spectra -v\n")
-        spectraString += f" -g {variables['prefix']}_spectra_bins.gff -t bin-region"
+        spectraString += f" --gff-file={variables['prefix']}_spectra_bins.gff --gff-tracks=bin-region"
     if args.ngaps:
         f.write(f"{variables['python']} {spectra_path}/scripts/utils/n-counter.py -i {variables['assembled']} -o {variables['prefix']}_ngaps.gff -v\n")
-        spectraString += f" -j {variables['prefix']}_ngaps.gff"
+        spectraString += f" --ngaps={variables['prefix']}_ngaps.gff"
     f.write(spectraString+"\n")
     if args.time:
         f.write(f"echo 'Ending 3-mer localization at:'\ndate\n\n")

@@ -68,14 +68,14 @@ def get_sequence_names(image_dir, prefix):
     return sorted(sequences)
 
 ### Adds the K-mer distribution plots section.
-def add_kmer_distribution_section(story, image_dir, prefix, mer, styles):
+def add_kmer_distribution_section(story, image_dir, prefix, mer, styles, percentile):
     story.append(Paragraph(
         f"<b>K={mer} distributions:</b> Kmer prevalence (left) in raw data [x-axis, log-scale] against prevalence in assembled data [y-axis, log-scale]. Kmer prevalence (right) when filtered for the top and bottom 5% of kmers by shift in abundance between datasets.",
         styles["Normal"]))
 
     paths = [
         os.path.join(image_dir, f"{prefix}_kmer_comp_k{mer}_scatter.png"),
-        os.path.join(image_dir, f"{prefix}_kmer_comp_k{mer}_scatter_extreme_5pct.png")
+        os.path.join(image_dir, f"{prefix}_kmer_comp_k{mer}_scatter_extreme_{percentile}pct.png")
     ]
     add_image_row(story, paths, [3.75 * inch] * 2, [4.5 * inch] * 2, styles)
 
@@ -166,7 +166,7 @@ def add_sequence_breakdown_section(story, image_dir, prefix, mer, sequence_names
         add_safe_image(story, low_path, 6.5 * inch, 4 * inch, styles, spacer=0)
 
 ### Main function to construct the PDF report.
-def make_report(output_pdf, image_dir, mer, prefix, bins=False, ngaps=False, max_output=50):
+def make_report(output_pdf, image_dir, mer, prefix, bins=False, ngaps=False, max_output=50, percentile=5):
     doc = SimpleDocTemplate(output_pdf, pagesize=letter)
     doc.title = f'Spectra output report: {prefix}'
     story = []
@@ -180,7 +180,7 @@ def make_report(output_pdf, image_dir, mer, prefix, bins=False, ngaps=False, max
     story.append(Spacer(1, 0.1 * inch))
 
     # Sections
-    add_kmer_distribution_section(story, image_dir, prefix, mer, styles)
+    add_kmer_distribution_section(story, image_dir, prefix, mer, styles, percentile)
     add_abundance_density_section(story, image_dir, prefix, mer, styles)
 
     sequence_names = get_sequence_names(image_dir, prefix)
@@ -201,6 +201,7 @@ def main():
     parser.add_argument('-n', '--n-gaps', dest='ngaps', action='store_true', help='Label gaps in the assembly in the final report', default=False)
     parser.add_argument('-b', '--bin-identify', dest='bins', action='store_true', help='Label bin regions in the genome assembly', default=False)
     parser.add_argument('-p', '--prefix', dest='prefix', type=str, required=True)
+    parser.add_argument('-e', '--percentile', dest='percentile', type=int, default=5)
     parser.add_argument('-x', '--max_output', dest='to_output', type=int, help='Contigs to include individual plots for, taken alphabetically.', default=50)
     args = parser.parse_args()
 
@@ -213,7 +214,8 @@ def main():
         prefix=args.prefix,
         bins=args.bins,
         ngaps=args.ngaps,
-        max_output=args.to_output
+        max_output=args.to_output,
+        percentile=args.percentile
     )
 
 if __name__ == "__main__":
