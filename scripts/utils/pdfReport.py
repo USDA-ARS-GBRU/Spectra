@@ -70,7 +70,7 @@ def get_sequence_names(image_dir, prefix):
 ### Adds the K-mer distribution plots section.
 def add_kmer_distribution_section(story, image_dir, prefix, mer, styles, percentile):
     story.append(Paragraph(
-        f"<b>K={mer} distributions:</b> Kmer prevalence (left) in raw data [x-axis, log-scale] against prevalence in assembled data [y-axis, log-scale]. Kmer prevalence (right) when filtered for the top and bottom 5% of kmers by shift in abundance between datasets.",
+        f"<b>K={mer} distributions:</b> Kmer prevalence (left) in raw data [x-axis, log-scale] against prevalence in assembled data [y-axis, log-scale]. Kmer prevalence (right) when filtered for the top and bottom {percentile}% of kmers by shift in abundance between datasets.",
         styles["Normal"]))
 
     paths = [
