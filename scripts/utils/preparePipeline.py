@@ -17,6 +17,7 @@ parser.add_argument('--bin-identify', dest='bins', action='store_true', help='La
 parser.add_argument('--jellyfish-bloom', dest='jf_bloom', type=str, default='100M', help='Jellyfish2 count bloomfilter initial size [default 100M]')
 parser.add_argument('--jellyfish-path', dest='jf_path', type=str, default='jellyfish', help='Jellyfish2 path. Default assumes it is in your env [default jellyfish]')
 parser.add_argument('--jellyfish-disk', dest='jf_disk', action='store_true', default=False, help='Use Jellyfish2 count disk parameter for large raw data files [default False]')
+parser.add_argument('--jellyfish-count-sep', dest='jf_sep', action='store_true', default=False, help='Process multiple raw inputs separately before joining together instead of as one count [default False]')
 parser.add_argument('--python-callable', dest='python', type=str, default='python', help='python3 path. Default assumes it is in your env [default python]')
 parser.add_argument('--spectra-callable', dest='spectra', type=str, default=None, help='Spectra path. If not set, automatically detected from this script')
 parser.add_argument('--rscript-callable', dest='rscript', type=str, default='Rscript', help='Rscript path. Default assumes it is in your env [default Rscript]')
@@ -91,14 +92,16 @@ with open(args.output, 'w') as f:
     # Begin writing raw jellyfish code
     f.write("###### Run raw jellyfish calculations, then dump and sort kmers above minimum.\n")
     if args.time:
-        #f.write(f'echo "Starting {variables['mer_size']}-mer processing on raw data at:"\ndate\n')
         f.write(f'echo "Starting {variables["mer_size"]}-mer processing on raw data at:"\ndate\n')
         pass
     if len(variables['raw'])>1:
-        for i in range(len(variables['raw'])):
-            f.write(f"{variables['jf_path']} count {'--disk ' if args.jf_disk else ''}-t {variables['threads']} -s {variables['jf_bloom']} -m {variables['mer_size']} -o {variables['prefix']}_rcp_{os.path.basename(variables['raw'][i][0])}.jfc -C " + (f"<(zcat {variables['raw'][i][0]})\n" if variables['raw'][i][1] else f"{variables['raw'][i][0]}\n"))
-            f.write(f"{variables['jf_path']} stats {variables['prefix']}_rcp_{os.path.basename(variables['raw'][i][0])}.jfc > {variables['prefix']}_rcp_{os.path.basename(variables['raw'][i][0])}.jstats\n")
-        f.write(f"{variables['jf_path']} merge -o {variables['prefix']}_raw_count.jfc {variables['prefix']}_rcp_*.jfc\n")
+        if args.jf_sep:
+            for i in range(len(variables['raw'])):
+                f.write(f"{variables['jf_path']} count {'--disk ' if args.jf_disk else ''}-t {variables['threads']} -s {variables['jf_bloom']} -m {variables['mer_size']} -o {variables['prefix']}_rcp_{os.path.basename(variables['raw'][i][0])}.jfc -C " + (f"<(zcat {variables['raw'][i][0]})\n" if variables['raw'][i][1] else f"{variables['raw'][i][0]}\n"))
+                f.write(f"{variables['jf_path']} stats {variables['prefix']}_rcp_{os.path.basename(variables['raw'][i][0])}.jfc > {variables['prefix']}_rcp_{os.path.basename(variables['raw'][i][0])}.jstats\n")
+            f.write(f"{variables['jf_path']} merge -o {variables['prefix']}_raw_count.jfc {variables['prefix']}_rcp_*.jfc\n")
+        else:
+            f.write(f"{variables['jf_path']} count {'--disk ' if args.jf_disk else ''}-t {variables['threads']} -s {variables['jf_bloom']} -m {variables['mer_size']} -o {variables['prefix']}_raw_count.jfc -C " + ' '.join([f"<({'z' if i[1] else ''}cat {i[0]})" for i in variables['raw']]) + '\n')
     else:
         f.write(f"{variables['jf_path']} count {'--disk ' if args.jf_disk else ''}-t {variables['threads']} -s {variables['jf_bloom']} -m {variables['mer_size']} -o {variables['prefix']}_raw_count.jfc -C "+ (f"<(zcat {variables['raw'][0][0]})\n" if variables['raw'][0][1] else f"{variables['raw'][0][0]}\n"))
     f.write(f"{variables['jf_path']} stats {variables['prefix']}_raw_count.jfc > {variables['prefix']}_raw_count.jstats\n")
@@ -115,14 +118,12 @@ with open(args.output, 'w') as f:
     # Begin writing assembly jellyfish code
     f.write("###### Run assembly jellyfish calculations, then dump and sort kmers above minimum.\n")
     if args.time:
-        #f.write(f"echo 'Starting {variables['mer_size']}-mer processing on assembly data at:'\ndate\n")
         f.write(f'echo "Starting {variables["mer_size"]}-mer processing on assembly data at:"\ndate\n')
     f.write(f"{variables['jf_path']} count -t {variables['threads']} -s {variables['jf_bloom']} -m {variables['mer_size']} -o {variables['prefix']}_asm_count.jfc -C {variables['assembled']}\n")
     f.write(f"{variables['jf_path']} stats {variables['prefix']}_asm_count.jfc > {variables['prefix']}_asm_count.jstats\n")
     f.write(f"{variables['jf_path']} histo {variables['prefix']}_asm_count.jfc > {variables['prefix']}_asm_count.jhisto\n")
     f.write(f"{variables['jf_path']} dump -L {variables['asm_min']} -c {variables['prefix']}_asm_count.jfc |sort > {variables['prefix']}_asm.jdump\n")
     if args.time:
-        #f.write(f"echo 'Ending {variables['mer_size']}-mer processing on assembly data at:'\ndate\n\n")
         f.write(f'echo "Ending {variables["mer_size"]}-mer processing on assembly data at:"\ndate\n\n')
 
     if args.keep:
@@ -147,12 +148,10 @@ with open(args.output, 'w') as f:
     # Begin writing localization code
     f.write(f"###### Generate and plot localization of extreme kmers\n")
     if args.time:
-        #f.write(f"echo 'Starting {variables['mer_size']}-mer localization at:'\ndate\n")
         f.write(f'echo "Starting {variables["mer_size"]}-mer localization at:"\ndate\n')
     f.write(f"{variables['python']} {spectra_path}/scripts/utils/mass-query.py -i {variables['assembled']} -q {variables['prefix']}_kmer_rank.tsv -m {variables['mer_size']} -o {variables['prefix']}_mass_query.tsv -c -w {variables['mq_window']} -t {variables['threads']} -s {variables['mq_window']} --minimum-size {variables['minimum_size']} -e {variables['percentile']} -v\n")
     f.write(f"{variables['rscript']} {spectra_path}/scripts/utils/mass-query-plot.r -i {variables['prefix']}_mass_query.tsv -o {variables['prefix']}/{variables['prefix']}_mass -u\n")
     if args.time:
-        #f.write(f"echo 'Ending {variables['mer_size']}-mer localization at:'\ndate\n\n")
         f.write(f'echo "Ending {variables["mer_size"]}-mer localization at:"\ndate\n\n')
     else:
         f.write(f"\n")
