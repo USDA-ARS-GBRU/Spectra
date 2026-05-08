@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 
-# TODO: create scalability for n-mer
-
 import os
 import time
 from Bio import SeqIO
@@ -12,7 +10,7 @@ import pandas as pd
 import multiprocessing
 from collections import namedtuple
 
-logging.basicConfig(level=logging.ERROR)
+logging.basicConfig(level=logging.ERROR, format='%(levelname)s: %(message)s')
 logger = logging.getLogger()
 
 WindowTask = namedtuple("WindowTask", ["seq", "queries", "start", "end", "headers"])
@@ -34,10 +32,10 @@ def execute(args):
     if args.verbose:
         logger.setLevel(logging.INFO)
 
-    startTime = time.time()
+    start_time = time.time()
     if not os.path.exists(args.input_sequence):
-        logging.error(f"Couldn't find input file '{args.input_sequence}'")
-        exit()
+        logger.error(f"Couldn't find input file '{args.input_sequence}'")
+        return
 
     if "," in args.query:
         queries = [a.upper() for a in args.query.split(',')]
@@ -50,44 +48,51 @@ def execute(args):
         else:
             sequences = SeqIO.to_dict(SeqIO.parse(args.input_sequence, args.sequence_format))
 
-        if len(sequences.keys()) == 0:
-            logging.error(f"Sequence file '{args.input_sequence}' could not be loaded in format '{args.sequence_format}' or has incorrectly formatted sequences")
-            exit()
-    except ValueError:
-        logging.error(f"Sequence file '{args.input_sequence}' could not be loaded in format '{args.sequence_format}'")
-        exit()
+        if not sequences:
+            logger.error(f"Sequence file '{args.input_sequence}' could not be loaded in format '{args.sequence_format}' or has no sequences")
+            return
+    except Exception as e:
+        logger.error(f"Error loading sequence file '{args.input_sequence}': {e}")
+        return
 
     if args.complement:
-        newQueries = []
+        new_queries = []
         for query in queries:
-            queryRC = spectral.rc(query)
-            if query not in newQueries:
-                newQueries.append(query)
-            if queryRC not in newQueries:
-                newQueries.append(queryRC)
-        queries = newQueries
+            query_rc = spectral.rc(query)
+            if query not in new_queries:
+                new_queries.append(query)
+            if query_rc not in new_queries:
+                new_queries.append(query_rc)
+        queries = new_queries
 
-    with open(args.output, 'w', newline='') as fileOutput:
-        tsvWriter = csv.writer(fileOutput, delimiter='\t')
-        tsvWriter.writerow(["Library", "Sequence", "Start", "End"] + queries)
+    try:
+        with open(args.output, 'w', newline='') as file_output:
+            tsv_writer = csv.writer(file_output, delimiter='\t')
+            tsv_writer.writerow(["Library", "Sequence", "Start", "End"] + queries)
 
-        callableProcess = spectral.windowCount if args.overlap else spectral.windowCountNoOverlap
-        tasks = window_tasks_generator(sequences, queries, args.width, args.spacing, args.libraries, args.input_sequence)
+            callable_process = spectral.window_count if args.overlap else spectral.window_count_no_overlap
+            tasks = window_tasks_generator(sequences, queries, args.width, args.spacing, args.libraries, args.input_sequence)
 
-        if args.threads > 1:
-            pool = multiprocessing.Pool(processes=args.threads)
-            for row in pool.imap(callableProcess, tasks):
-                tsvWriter.writerow(row)
-            pool.close()
-            pool.join()
-        else:
-            for task in tasks:
-                tsvWriter.writerow(callableProcess(task))
+            if args.threads > 1:
+                pool = multiprocessing.Pool(processes=args.threads)
+                for row in pool.imap(callable_process, tasks):
+                    tsv_writer.writerow(row)
+                pool.close()
+                pool.join()
+            else:
+                for task in tasks:
+                    tsv_writer.writerow(callable_process(task))
+    except Exception as e:
+        logger.error(f"Failed to write to {args.output}: {e}")
+        return
 
     if args.complement:
-        logging.info("Simplifying forward and r-c counts")
-        spectra = pd.read_csv(args.output, delimiter='\t')
-        spectra = spectral.simplify(spectra, dim=len(queries))
-        spectra.to_csv(args.output, sep='\t', index=False)
+        logger.info("Simplifying forward and r-c counts")
+        try:
+            spectra = pd.read_csv(args.output, delimiter='\t')
+            spectra = spectral.simplify(spectra, dim=len(queries))
+            spectra.to_csv(args.output, sep='\t', index=False)
+        except Exception as e:
+            logger.error(f"Error during simplification: {e}")
 
-    logging.info(f'Execution time in seconds: {time.time() - startTime}')
+    logger.info(f'Execution time in seconds: {time.time() - start_time}')

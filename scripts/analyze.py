@@ -1,71 +1,66 @@
 #!/usr/bin/env python3
 
-# provide info about a given spectra file
-
-import ruptures as rpt
-import logging
 import os
+import logging
 import pandas as pd
-import matplotlib.pyplot as plt
 import spectral
+import matplotlib.pyplot as plt
 import numpy as np
-logging.basicConfig(level=logging.ERROR)
+import ruptures as rpt
+
+logging.basicConfig(level=logging.ERROR, format='%(levelname)s: %(message)s')
 logger = logging.getLogger()
 
-# plots breakpoints calculated through ruptures
-def plotBreakpoints(spectra, index=4, dim=64, penalty=1000000, min_size=5, output=""):
-    spectra = spectra.groupby(['Library', 'Sequence'])
-    for group in spectra:
-        data = group[1].iloc[0:len(group[1]), index:index + dim].to_numpy()
-        if len(data) > min_size * 2:
-            dataAlgo = rpt.KernelCPD(min_size=min_size).fit(data).predict(pen=penalty)
-            fig, ax_arr = rpt.display(np.ndarray(shape=1), dataAlgo, figsize=(30, 1))
-            plt.savefig(f'breakpoints_breakdown_{output}_{group[0][0]}_{group[0][1]}.png')
-            plt.close()
-
-def gffWriter(results, output):
-    with open(f"{output}_bins.gff", 'w') as outFile:
-        i = 0
-        for line in results.iterrows():
-            outFile.write(f"{line[1]['Sequence']}\tSpectra-bins\tbin-region\t{line[1]['Start']}\t{line[1]['End']}\t.\t{'+' if i%2==0 else '-'}\t.\tBin ID:{line[1]['Bin']}, size: {line[1]['Length']}\n")
-            i += 1
-
-# function to iterate over the windows and convert them to frequencies
-# raw counts misrepresent kmer diversity in gappy alignments
-def padWindows(spectra, tally, mer):
-    for index, row in spectra.iterrows():
-        spectra.loc[index, mer] = [a/tally[index] for a in row[mer]]
-    return spectra
+def gff_writer(results, output):
+    try:
+        with open(f"{output}_bins.gff", 'w') as out_file:
+            for i, (_, line) in enumerate(results.iterrows()):
+                strand = '+' if i % 2 == 0 else '-'
+                out_file.write(f"{line['Sequence']}\tSpectra-bins\tbin-region\t{line['Start']}\t{line['End']}\t.\t{strand}\t.\tBin ID:{line['Bin']}, size: {line['Length']}\n")
+    except Exception as e:
+        logger.error(f"Error writing GFF file: {e}")
 
 def execute(args):
     if args.verbose:
         logger.setLevel(logging.INFO)
 
     if not os.path.exists(args.input_tsv):
-        logging.error(f"Could not find input file '{args.input_tsv}'")
-        exit()
+        logger.error(f"Could not find input file '{args.input_tsv}'")
+        return
 
-    spectra = pd.read_csv(args.input_tsv, delimiter='\t')
-    indexLength = 4
-    spectraDimensions = len(spectra.columns) - indexLength
+    try:
+        spectra = pd.read_csv(args.input_tsv, delimiter='\t')
+    except Exception as e:
+        logger.error(f"Error reading {args.input_tsv}: {e}")
+        return
+
+    index_length = 4
+    spectra_dimensions = len(spectra.columns) - index_length
+
     if args.frequency:
-        # penalty is temporarily locked to 1 or lower for frequency-based breakpoints
         if args.penalty > 1:
             args.penalty = 0.5
-        spectra = spectral.countToFrequency(spectra, index=indexLength, dim=spectraDimensions)
-    breakpoints = spectral.getBreakpoints(spectra, penalty=args.penalty, min_size=args.size, index=indexLength, dim=spectraDimensions)
-    spectra = spectral.applyBreakpoints(spectra, breakpoints)
+        spectra = spectral.count_to_frequency(spectra, index=index_length, dim=spectra_dimensions)
+
+    breakpoints = spectral.get_breakpoints(spectra, penalty=args.penalty, min_size=args.size, index=index_length, dim=spectra_dimensions)
+    spectra = spectral.apply_breakpoints(spectra, breakpoints)
 
     if args.output_prefix:
-        spectra.to_csv(f"{args.output_prefix}.tsv", sep='\t', index=False)
+        try:
+            spectra.to_csv(f"{args.output_prefix}.tsv", sep='\t', index=False)
+        except Exception as e:
+            logger.error(f"Error writing output TSV: {e}")
 
-    spectraDimensions -= 1
-    results = spectral.getBreakpointFrequencies(spectra, args.frequency, index=indexLength, dim=spectraDimensions)
+    # After applying breakpoints, 'Block' column might have been added, adjusting dimensions
+    # Actually spectral.get_breakpoint_frequencies handles it if we pass correct dim
+    results = spectral.get_breakpoint_frequencies(spectra, args.frequency, index=index_length, dim=spectra_dimensions)
+
     if args.output_prefix:
-        results.to_csv(f"{args.output_prefix}_bins.tsv", index=False, sep='\t')
-        gffWriter(results,args.output_prefix)
+        try:
+            results.to_csv(f"{args.output_prefix}_bins.tsv", index=False, sep='\t')
+            gff_writer(results, args.output_prefix)
+        except Exception as e:
+            logger.error(f"Error writing results: {e}")
     else:
-        for line in results.iterrows():
-            print(f"{line[1][0]}, {line[1][1]}, {line[1][4]}, {line[1][5]}")
-    #plotBreakpoints(spectra, penalty=args.penalty, min_size=args.size, index=indexLength, dim=spectraDimensions, output=args.output_tsv if args.output_tsv else '')
-    #
+        for _, line in results.iterrows():
+            print(f"{line['Library']}, {line['Sequence']}, {line['Start']}, {line['End']}")
