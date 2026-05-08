@@ -95,7 +95,45 @@ sns.set(style="whitegrid")
 
 # Scatter
 plt.figure(figsize=(8, 8))
-plt.scatter(df["RawCount"], df["AsmCount"], s=1, alpha=0.2)
+
+##### Experimental
+
+# Composite color mapping:
+# RawCount: light red -> dark red; AsmCount: light blue -> dark blue
+# Normalized log counts for color mapping
+r_min, r_max = df["logRaw"].min(), df["logRaw"].max()
+a_min, a_max = df["logAsm"].min(), df["logAsm"].max()
+
+
+def normalize_color(vals, vmin, vmax):
+    if vmin == vmax:
+        return np.zeros_like(vals)
+    return (vals - vmin) / (vmax - vmin)
+
+
+nr = normalize_color(df["logRaw"].values, r_min, r_max)
+na = normalize_color(df["logAsm"].values, a_min, a_max)
+
+# Color mapping: Bilinear interpolation between four corners
+# (0,0): Light Red + Light Blue average = (0.9, 0.8, 0.9)
+# (1,0): Dark Red = (0.5, 0.0, 0.0)
+# (0,1): Dark Blue = (0.0, 0.0, 0.5)
+# (1,1): Dark Purple = (0.25, 0.0, 0.25)
+c00 = np.array([0.9, 0.8, 0.9])
+c10 = np.array([0.5, 0.0, 0.0])
+c01 = np.array([0.0, 0.0, 0.5])
+c11 = np.array([0.25, 0.0, 0.25])
+
+# Vectorized bilinear interpolation
+colors = (np.outer((1 - nr) * (1 - na), c00) +
+          np.outer(nr * (1 - na), c10) +
+          np.outer((1 - nr) * na, c01) +
+          np.outer(nr * na, c11))
+
+plt.scatter(df["RawCount"], df["AsmCount"], s=1, alpha=0.3, c=colors, edgecolors='none')
+#####
+
+#plt.scatter(df["RawCount"], df["AsmCount"], s=1, alpha=0.2)
 plt.xscale("log")
 plt.yscale("log")
 ##
