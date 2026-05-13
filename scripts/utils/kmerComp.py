@@ -23,7 +23,7 @@ parser.add_argument('-v', '--verbose', dest='verbose', action='store_true', help
 args = parser.parse_args()
 
 # Logging
-logging.basicConfig(level=logging.ERROR)
+logging.basicConfig(level=logging.ERROR, format='%(levelname)s: %(message)s')
 logger = logging.getLogger()
 if args.verbose:
     logger.setLevel(logging.INFO)
@@ -37,69 +37,74 @@ def stream_merge(raw_file, asm_file, sample_size):
     sample = []
     total = 0
 
-    with open(raw_file) as fr, open(asm_file) as fa:
-        r = fr.readline().split()
-        a = fa.readline().split()
+    try:
+        with open(raw_file) as fr, open(asm_file) as fa:
+            line_r = fr.readline().split()
+            line_a = fa.readline().split()
 
-        while r and a:
-            if r[0] == a[0]:
-                kmer, rc, ac = r[0], int(r[1]), int(a[1])
-                total += 1
+            while line_r and line_a:
+                if line_r[0] == line_a[0]:
+                    kmer, count_r, count_a = line_r[0], int(line_r[1]), int(line_a[1])
+                    total += 1
 
-                # Reservoir sampling
-                if len(sample) < sample_size:
-                    sample.append((kmer, rc, ac))
+                    # Reservoir sampling
+                    if len(sample) < sample_size:
+                        sample.append((kmer, count_r, count_a))
+                    else:
+                        j = random.randint(0, total - 1)
+                        if j < sample_size:
+                            sample[j] = (kmer, count_r, count_a)
+
+                    line_r = fr.readline().split()
+                    line_a = fa.readline().split()
+
+                elif line_r[0] < line_a[0]:
+                    line_r = fr.readline().split()
                 else:
-                    j = random.randint(0, total - 1)
-                    if j < sample_size:
-                        sample[j] = (kmer, rc, ac)
-
-                r = fr.readline().split()
-                a = fa.readline().split()
-
-            elif r[0] < a[0]:
-                r = fr.readline().split()
-            else:
-                a = fa.readline().split()
+                    line_a = fa.readline().split()
+    except Exception as e:
+        logger.error(f"Error during stream merge: {e}")
+        return [], 0
 
     return sample, total
 
 logger.info("Streaming merge and sampling...")
-sample, total_pairs = stream_merge(args.raw_dump, args.asm_dump, args.plot_sample)
+sample_kmers, total_pairs = stream_merge(args.raw_dump, args.asm_dump, args.plot_sample)
 
-logger.info(f"Processed {total_pairs:,} matched kmers; kept {len(sample):,} in sample.")
+if not sample_kmers:
+    logger.error("No matched kmers found or error occurred.")
+    exit(1)
+
+logger.info(f"Processed {total_pairs:,} matched kmers; kept {len(sample_kmers):,} in sample.")
 
 
 # Transformations on sample
-df = pd.DataFrame(sample, columns=["kmer", "RawCount", "AsmCount"])
+df = pd.DataFrame(sample_kmers, columns=["kmer", "RawCount", "AsmCount"])
 df["logRaw"] = np.log10(df["RawCount"] + 1)
 df["logAsm"] = np.log10(df["AsmCount"] + 1)
 df["reduction"] = df["logAsm"] - df["logRaw"]
 df["reductionRank"] = df["reduction"].rank(method="first")
 
 # Percentile filtering on sample
-p = args.percentile / 100.0
-n = len(df)
-low_cut = int(math.ceil(n * p))
-high_cut = int(math.floor(n * (1 - p)))
+p_val = args.percentile / 100.0
+n_rows = len(df)
+low_cut = int(math.ceil(n_rows * p_val))
+high_cut = int(math.floor(n_rows * (1 - p_val)))
 df_sorted = df.sort_values("reductionRank")
 df_extreme = pd.concat([df_sorted.iloc[:low_cut], df_sorted.iloc[high_cut:]])
-##
-xmin = min(df_sorted["RawCount"])
-xmax = max(df_sorted["RawCount"])
-ymin = min(df_sorted["AsmCount"])
-ymax = max(df_sorted["AsmCount"])
-##
+
+xmin = df_sorted["RawCount"].min()
+xmax = df_sorted["RawCount"].max()
+ymin = df_sorted["AsmCount"].min()
+ymax = df_sorted["AsmCount"].max()
+
 # Plotting functions
 sns.set(style="whitegrid")
 
 # Scatter
 plt.figure(figsize=(8, 8))
 
-##### Experimental
-
 # Composite color mapping:
-# RawCount: light red -> dark red; AsmCount: light blue -> dark blue
 # Normalized log counts for color mapping
 r_min, r_max = df["logRaw"].min(), df["logRaw"].max()
 a_min, a_max = df["logAsm"].min(), df["logAsm"].max()
@@ -111,35 +116,27 @@ def normalize_color(vals, vmin, vmax):
     return (vals - vmin) / (vmax - vmin)
 
 
-nr = normalize_color(df["logRaw"].values, r_min, r_max)
-na = normalize_color(df["logAsm"].values, a_min, a_max)
+norm_r = normalize_color(df["logRaw"].values, r_min, r_max)
+norm_a = normalize_color(df["logAsm"].values, a_min, a_max)
 
 # Color mapping: Bilinear interpolation between four corners
-# (0,0): Light Red + Light Blue average = (0.9, 0.8, 0.9)
-# (1,0): Dark Red = (0.5, 0.0, 0.0)
-# (0,1): Dark Blue = (0.0, 0.0, 0.5)
-# (1,1): Dark Purple = (0.25, 0.0, 0.25)
 c00 = np.array([0.9, 0.8, 0.9])
 c10 = np.array([0.5, 0.0, 0.0])
 c01 = np.array([0.0, 0.0, 0.5])
 c11 = np.array([0.25, 0.0, 0.25])
 
 # Vectorized bilinear interpolation
-colors = (np.outer((1 - nr) * (1 - na), c00) +
-          np.outer(nr * (1 - na), c10) +
-          np.outer((1 - nr) * na, c01) +
-          np.outer(nr * na, c11))
+colors = (np.outer((1 - norm_r) * (1 - norm_a), c00) +
+          np.outer(norm_r * (1 - norm_a), c10) +
+          np.outer((1 - norm_r) * norm_a, c01) +
+          np.outer(norm_r * norm_a, c11))
 
 plt.scatter(df["RawCount"], df["AsmCount"], s=1, alpha=0.3, c=colors, edgecolors='none')
-#####
 
-#plt.scatter(df["RawCount"], df["AsmCount"], s=1, alpha=0.2)
 plt.xscale("log")
 plt.yscale("log")
-##
 plt.xlim(xmin, xmax)
 plt.ylim(ymin, ymax)
-##
 plt.xlabel("Kmers in raw data")
 plt.ylabel("Kmers in assembly")
 plt.title(f"K={args.kmer_size} coverage (scatter)")
@@ -149,15 +146,12 @@ plt.close()
 # Scatter (extremes only)
 if not df_extreme.empty:
     plt.figure(figsize=(8, 8))
-    ## testing color schemes here
     plt.scatter(df_extreme["RawCount"], df_extreme["AsmCount"],
                 c=df_extreme["reduction"], cmap="coolwarm", s=2, alpha=0.6)
     plt.xscale("log")
     plt.yscale("log")
-    ##
     plt.xlim(xmin, xmax)
     plt.ylim(ymin, ymax)
-    ##
     plt.xlabel("Kmers in raw data")
     plt.ylabel("Kmers in assembly")
     plt.title(f"K={args.kmer_size} extreme kmers (±{args.percentile}%)")
@@ -167,9 +161,9 @@ if not df_extreme.empty:
 
 # ECDF
 plt.figure(figsize=(8, 6))
-x = np.sort(df["reduction"])
-y = np.arange(1, len(x) + 1) / len(x)
-plt.step(x, y, where="post", color="red")
+ecdf_x = np.sort(df["reduction"])
+ecdf_y = np.arange(1, len(ecdf_x) + 1) / len(ecdf_x)
+plt.step(ecdf_x, ecdf_y, where="post", color="red")
 plt.xlabel("Log-fold kmer change")
 plt.ylabel("Cumulative probability")
 plt.title(f"K={args.kmer_size} empirical cumulative distribution")
@@ -196,24 +190,6 @@ plt.close()
 
 # Back-to-back density plot
 plt.figure(figsize=(6, 6))
-
-# KDE for Raw
-sns.kdeplot(
-    y=df["logRaw"],
-    fill=True,
-    alpha=0.6,
-    color="#1f77b4",
-    linewidth=0,
-    bw_adjust=0.5,
-    clip=(df["logRaw"].min(), df["logRaw"].max()),
-).set(xlim=(None, None))  # ensure it draws density as function of y
-
-# Get KDE data explicitly so we can mirror
-raw_density = sns.kdeplot(df["logRaw"], bw_adjust=0.5).get_lines()[0].get_data()
-plt.cla()  # clear temp plot
-
-# Compute KDE curves manually
-
 
 y_vals = np.linspace(
     min(df["logRaw"].min(), df["logAsm"].min()),

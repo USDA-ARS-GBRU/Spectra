@@ -1,390 +1,406 @@
 #!/usr/bin/env Rscript
-####
-##### Repeats along (catermerize) sequence for multiple libraries
+#' Spectra Visualization Script
+#' Generates linear or circular plots of k-mer distributions along genomic sequences.
 
-#Load dependencies
 suppressPackageStartupMessages({
   library(dplyr)
   library(tidyr)
   library(ggplot2)
   library(optparse)
   library(readr)
+  library(scales)
 })
 
-baseTheme = theme_bw() + theme(
-	axis.title.x = element_text(size=5),
-	axis.title.y = element_text(size=5),
-	legend.key.size = unit(5, "pt"),
-	legend.spacing = unit(-3, "pt"),
-	axis.text.x = element_text(angle=0, vjust=0.5, size=5),
-	axis.text.y = element_text(size=5),
-	line = element_blank(),
-	axis.ticks = element_line(),
-	legend.title = element_blank()
+# --- Constants and Themes ---
+
+BASE_THEME <- theme_bw() + theme(
+  axis.title.x = element_text(size = 5),
+  axis.title.y = element_text(size = 5),
+  legend.key.size = unit(5, "pt"),
+  legend.spacing = unit(-3, "pt"),
+  axis.text.x = element_text(angle = 0, vjust = 0.5, size = 5),
+  axis.text.y = element_text(size = 5),
+  line = element_blank(),
+  axis.ticks = element_line(),
+  legend.title = element_blank()
 )
 
-spectraPlot = function(values, tripletColors, legend=FALSE, facet=FALSE, frequencies=FALSE, ylims=TRUE, range, scale, axes, paletteNames){
-    if(!frequencies){
-        values = values %>% mutate(value=value/(End-Start+1))
-    }
-    values = values %>% group_by(Library, Sequence, Start, End) %>%
-        arrange(desc(name), .by_group=TRUE, ) %>%
-        mutate(ymax = cumsum(value), ymin = ymax - value) %>%
-        ungroup()
-    p <- ggplot(values, aes(x=(Start+End)/2, ymin=ymin, ymax=ymax, fill=name)) +
+# --- Helper Functions ---
+
+#' Build color palette for triplets
+palette_builder <- function(triplet, palette = "base") {
+  bases <- c("A", "C", "G", "T")
+  colors <- switch(
+    palette,
+    "base"      = c("C6", "6C", "3C", "10"),
+    "base2"     = c("BF", "6F", "46", "1F"),
+    "base3"     = c("CF", "6F", "56", "2F"),
+    "dual"      = c("96", "3C", "3C", "96"),
+    "acontrast" = c("CC", "33", "33", "3F")
+  )
+
+  if (is.null(colors)) colors <- c("C6", "6C", "3C", "10") # Default to base
+
+  # Construct color hex
+  b1 <- substr(triplet, 1, 1)
+  b2 <- substr(triplet, 2, 2)
+  b3 <- substr(triplet, 3, 3)
+
+  color <- paste0("#",
+                  colors[match(b1, bases)],
+                  colors[match(b2, bases)],
+                  colors[match(b3, bases)])
+  return(color)
+}
+
+#' Standard linear spectra plot
+create_spectra_plot <- function(values, triplet_colors, legend = FALSE, facet = FALSE,
+                               frequencies = FALSE, ylims = TRUE, scale = 1, axes = TRUE) {
+  if (!frequencies) {
+    values <- values %>% mutate(value = value / (End - Start + 1))
+  }
+
+  values <- values %>%
+    group_by(Library, Sequence, Start, End) %>%
+    arrange(desc(name), .by_group = TRUE) %>%
+    mutate(ymax = cumsum(value), ymin = ymax - value) %>%
+    ungroup()
+
+  p <- ggplot(values, aes(x = (Start + End) / 2, ymin = ymin, ymax = ymax, fill = name)) +
     geom_ribbon()
 
-    if (ylims) {
-        p <- p + scale_y_continuous(limits=c(0,1), expand=c(0,0))
-    } else {
-        p <- p + scale_y_continuous(expand=c(0,0))
-    }
+  if (ylims) {
+    p <- p + scale_y_continuous(limits = c(0, 1), expand = c(0, 0))
+  } else {
+    p <- p + scale_y_continuous(expand = c(0, 0))
+  }
 
-    xrange <- max(values$End) - min(values$Start) + 1
-    if(log10(xrange) > log10(scale*1000000)+1){
-        scale = scale * 10
-    }
-    #breaks <- xrange %/% (scale*1000000)
-    #if (breaks < 2) breaks = 2
-    p <- p + scale_fill_manual(values=tripletColors) +
-        scale_x_continuous(
-            limits=c(min(values$Start), max(values$End)),
-            n.breaks=10,
-            expand=c(0,0),
-            labels=scales::scientific
-        ) +
-        xlab("Window Position (nucleotide)") +
-        ylab(if (frequencies) "Frequency" else "Proportion") +
-       baseTheme + theme(plot.margin = margin(t=2.5, l=2.5, b=2.5, r=2.5))
+  xrange <- max(values$End) - min(values$Start) + 1
+  if (log10(xrange) > log10(scale * 1e6) + 1) {
+    scale <- scale * 10
+  }
 
-    if (facet) {
-        p <- p + facet_grid(rows = vars(Library))
-    }
-    if (!legend) {
-        p <- p + theme(legend.position = "none")
-    }
-    if (!axes) {
-        p <- p + theme(
-          axis.text.x = element_blank(),
-          axis.text.y = element_blank(),
-          axis.title.x = element_blank(),
-          axis.title.y = element_blank(),
-          axis.ticks = element_blank(),
-          plot.margin = margin(t=0, l=-2.7, b=-2.7, r=0)
-        )
-    }
-    return(p)
+  p <- p + scale_fill_manual(values = triplet_colors) +
+    scale_x_continuous(
+      limits = c(min(values$Start), max(values$End)),
+      n.breaks = 10,
+      expand = c(0, 0),
+      labels = scales::scientific
+    ) +
+    xlab("Window Position (nucleotide)") +
+    ylab(if (frequencies) "Frequency" else "Proportion") +
+    BASE_THEME +
+    theme(plot.margin = margin(t = 2.5, l = 2.5, b = 2.5, r = 2.5))
+
+  if (facet) {
+    p <- p + facet_grid(rows = vars(Library))
+  }
+  if (!legend) {
+    p <- p + theme(legend.position = "none")
+  }
+  if (!axes) {
+    p <- p + theme(
+      axis.text.x = element_blank(),
+      axis.text.y = element_blank(),
+      axis.title.x = element_blank(),
+      axis.title.y = element_blank(),
+      axis.ticks = element_blank(),
+      plot.margin = margin(t = 0, l = -2.7, b = -2.7, r = 0)
+    )
+  }
+  return(p)
 }
 
-circularPlot = function(values, tripletColors, legend=FALSE, frequencies=FALSE, ylims=TRUE, axes=FALSE, paletteNames, limit=0){
-	suppressPackageStartupMessages(library(egg))
+#' Circular genome-wide plot
+create_circular_plot <- function(values, triplet_colors, legend = FALSE, frequencies = FALSE,
+                               ylims = TRUE, limit = 0) {
+  suppressPackageStartupMessages(library(egg))
 
-	#definable sequence spacer size
-	spacerLength = 1000000
-	spacerValues = rbind(
-		values %>% filter(End==min(values$End),Sequence==values$Sequence[1]) %>% mutate(Start=1, End=1000, value=0, Sequence='Spacer'),
-		values %>% filter(End==min(values$End),Sequence==values$Sequence[1]) %>% mutate(Start=1001, End=spacerLength-1000, value=0, Sequence='Spacer'),
-		values %>% filter(End==min(values$End),Sequence==values$Sequence[1]) %>% mutate(Start=spacerLength-999, End=spacerLength, value=0, Sequence='Spacer')
-	)
-	
-	# modify sequence positions to be absolute
-	sequences_names=unique(values$Sequence)
-	newValues = values %>% filter(Sequence==sequences_names[1])
-	current_max = max(newValues$End)
-	
-	for(index in sequences_names[2:length(sequences_names)]){
-		newValues = rbind(
-			newValues,
-			spacerValues %>% mutate(Start=Start+current_max,End=End+current_max)
-		)
-		current_max = current_max + spacerLength
-		current_values = values %>% filter(Sequence==index)
-		newValues = rbind(
-			newValues,
-			current_values %>% mutate(Start=Start+current_max, End=End+current_max)
-		)
-		current_max = max(newValues$End) + spacerLength
-	}
-	
-	if(frequencies){
-		p = ggplot() + geom_area(data=newValues, aes(fill=name, x=(Start+End)/2, y=value), stat="identity", position="stack")
-	}else{
-		p = ggplot() + geom_area(data=newValues, aes(fill=name, x=(Start+End)/2,y=value/(End-Start+1)), stat="identity", position="stack")
-	}
-	## figuring out why ylim is so high
-	if(ylims){
-        p = p + scale_y_continuous(limits=c(0,1), expand=c(.5, .5))
-	}else{
-		p = p + scale_y_continuous(expand=c(.5, .5))
-	}
-	p = p + scale_fill_manual(values=tripletColors)
-	if(limit>0){
-		plot_size = limit + ((length(sequences_names)-1) * spacerLength)
-	}else{
-		plot_size = current_max
-	}
-	p = p + scale_x_continuous(
-		limits=c(1, plot_size),
-		breaks=waiver(),
-		minor_breaks=waiver(),
-		n.breaks=30,
-		expand=c(0, 0),
-		labels=scales::scientific
-	)+
-	xlab("Window Position (nucleotide)") +
-	ylab("Proportion") +
-	baseTheme +
-	theme(
-	    axis.text.x = element_blank(),
-        axis.text.y = element_blank(),
-        axis.title.x = element_blank(),
-        axis.title.y = element_blank(),
-        axis.ticks = element_blank(),
-		plot.margin = margin(t=-270, l=-270, b=-270, r=-270, unit="pt")
-	)# +
-	#facet_grid(cols = vars(values$Sequence))
-	
-	if(!legend){
-		p = p + theme(legend.position = "none")
-	}
-	### testing new plot margins. -270pt is good for tested axes-less plots
-	p = p + coord_polar(start = 0)
-	return(p)
+  # Definable sequence spacer size
+  spacer_length <- 1000000
+  spacer_values <- rbind(
+    values %>% filter(End == min(End), Sequence == values$Sequence[1]) %>%
+      mutate(Start = 1, End = 1000, value = 0, Sequence = "Spacer"),
+    values %>% filter(End == min(End), Sequence == values$Sequence[1]) %>%
+      mutate(Start = 1001, End = spacer_length - 1000, value = 0, Sequence = "Spacer"),
+    values %>% filter(End == min(End), Sequence == values$Sequence[1]) %>%
+      mutate(Start = spacer_length - 999, End = spacer_length, value = 0, Sequence = "Spacer")
+  )
+
+  # Modify sequence positions to be absolute
+  seq_names <- unique(values$Sequence)
+  new_values <- values %>% filter(Sequence == seq_names[1])
+  current_max <- max(new_values$End)
+
+  if (length(seq_names) > 1) {
+    for (index in seq_names[2:length(seq_names)]) {
+      new_values <- rbind(
+        new_values,
+        spacer_values %>% mutate(Start = Start + current_max, End = End + current_max)
+      )
+      current_max <- current_max + spacer_length
+      current_values <- values %>% filter(Sequence == index)
+      new_values <- rbind(
+        new_values,
+        current_values %>% mutate(Start = Start + current_max, End = End + current_max)
+      )
+      current_max <- max(new_values$End) + spacer_length
+    }
+  }
+
+  if (frequencies) {
+    p <- ggplot() + geom_area(data = new_values, aes(fill = name, x = (Start + End) / 2, y = value),
+                             stat = "identity", position = "stack")
+  } else {
+    p <- ggplot() + geom_area(data = new_values, aes(fill = name, x = (Start + End) / 2, y = value / (End - Start + 1)),
+                             stat = "identity", position = "stack")
+  }
+
+  if (ylims) {
+    p <- p + scale_y_continuous(limits = c(0, 1), expand = c(0.5, 0.5))
+  } else {
+    p <- p + scale_y_continuous(expand = c(0.5, 0.5))
+  }
+
+  p <- p + scale_fill_manual(values = triplet_colors)
+
+  plot_size <- if (limit > 0) limit + ((length(seq_names) - 1) * spacer_length) else current_max
+
+  p <- p + scale_x_continuous(
+    limits = c(1, plot_size),
+    n.breaks = 30,
+    expand = c(0, 0),
+    labels = scales::scientific
+  ) +
+    xlab("Window Position (nucleotide)") +
+    ylab("Proportion") +
+    BASE_THEME +
+    theme(
+      axis.text.x = element_blank(),
+      axis.text.y = element_blank(),
+      axis.title.x = element_blank(),
+      axis.title.y = element_blank(),
+      axis.ticks = element_blank(),
+      plot.margin = margin(t = -270, l = -270, b = -270, r = -270, unit = "pt")
+    )
+
+  if (!legend) {
+    p <- p + theme(legend.position = "none")
+  }
+
+  p <- p + coord_polar(start = 0)
+  return(p)
 }
 
-paletteBuilder = function(triplet,palette='base'){
-	bases = c("A","C","G","T")
-	colors = switch(
-		palette,
-		'base'= c("C6","6C","3C","10"),
-		'base2'= c("BF","6F","46","1F"),
-		'base3'= c("CF","6F","56","2F"),
-		'dual'= c("96","3C","3C","96"),
-		'acontrast'= c("CC","33","33","3F")
-	)
+# --- Main Logic ---
 
-	color = paste0("#",colors[which(substr(triplet,1,1) == bases)],colors[which(substr(triplet,2,2) == bases)],colors[which(substr(triplet,3,3) == bases)])
-	return(color)
-}
-
-#Argument parser
 option_list <- list(
-	make_option(c("-i","--input"), type="character", default=NULL, help="triplet tsv file' [default %default]", dest="input_filename"),
-	make_option(c("-w", "--window-size"), type="character", default=NULL, help="Generate plot only from the closest intervals of \"N,M\". Otherwise generate a plot for all positions [default %default]", dest="window_size"),
-	make_option(c("-s", "--sequence"), type="character", default=NULL, help="Generate plot only from the sequences with names in \"A,B,C\" or by regular expression if -e flag specified. Otherwise generate a plot for each sequence id [default %default]", dest="sequences"),
-	make_option(c("-n", "--libraries"), type="character", default=NULL, help="Generate plot only from the libraries with names in \"A,B,C\" or by regular expression if -e flag specified. Otherwise generate a plot for each library id [default %default]", dest="libraries"),
-	make_option(c("-e", "--regex"), action="store_true", default=FALSE, help="Uses regex to subset sequence and library names [default %default]", dest="regex"),
-	make_option(c("--graphlength"), type="numeric", default=0, help="Designate the length of sequence to plot (for partial graphs in circular plot). 0 = No limit [default %default]", dest="length"),
-	make_option(c("--gff-file"), type="character", default=NULL, help="Generate plot of overlapping gene annotations from supplied gff. [default %default]", dest="gffFile"),
-	make_option(c("--gff-tracks"), type="character", default=NULL, help="Curate which gff types to use in types \"A,B,C\". [default %default]", dest="gffTracks"),
-	make_option(c("--trf-file"), type="character", default=NULL, help="Generate plot of overlapping trf annotations from supplied trf-tsv. [default %default]", dest="trfFile"),
-	make_option(c("-o","--output-prefix"), type="character", default=NULL, help="Output prefix [default %default]", dest="output_filename"),
-	make_option(c("-f","--output-format"), type="character", default="png", help="Output image format [default %default]", dest="output_type"),
-	make_option(c("-r","--resolution"), type="numeric", default=300, help="Plotting dpi resolution [default %default]", dest="resolution"),
-	make_option(c("-q","--freq"), action="store_true", default=FALSE, help="Data already transformed to frequencies [default %default]", dest="frequencies"),
-	make_option(c("-l","--show-legend"), action="store_true", default=FALSE, help="Display triplet color legend [default %default]", dest="legend"),
-	make_option(c("-y","--ylims"), action="store_false", default=TRUE, help="Limit results to y-axes between 0,1 [default %default]", dest="ylims"),
-	make_option(c("-x","--scale"), type="numeric", default=1, help="Scale of x-axis. Plot each n (mb) over 1 inch [default %default]", dest="scale"),
-	make_option(c("-a","--axes"), action="store_false", default=TRUE, help="Display axes text [default %default]", dest="axes"),
-	make_option(c("-k","--keep-scale"), action="store_true", default=FALSE, help="Incorporate scale [default %default]", dest="keep"),
-	make_option(c("--palette"), type="character", default='base', help="Spectra color palette. Available palettes: base, dual [default %default]", dest="palette"),
-	make_option(c("-c","--circular"), action="store_true", default=FALSE, help="Invoke a circular, full genome plot [default %default]", dest="circular"),
-	make_option(c("-t","--transparent"), action="store_true", default=FALSE, help="Use transparent image backgrounds if supported by format [default %default]", dest="transparent"),
-	make_option(c("--ngaps"), type="character", default=NULL, help="Label Ngap coordinates [default %default]", dest="ngaps")
+  make_option(c("-i", "--input"), type = "character", default = NULL, help = "Input triplet tsv file", dest = "input_filename"),
+  make_option(c("-w", "--window-size"), type = "character", default = NULL, help = "Subset range 'N,M'", dest = "window_range"),
+  make_option(c("-s", "--sequence"), type = "character", default = NULL, help = "Subset sequences 'A,B,C' or regex", dest = "sequences"),
+  make_option(c("-n", "--libraries"), type = "character", default = NULL, help = "Subset libraries 'A,B,C' or regex", dest = "libraries"),
+  make_option(c("-e", "--regex"), action = "store_true", default = FALSE, help = "Use regex for subsetting", dest = "use_regex"),
+  make_option(c("--graphlength"), type = "numeric", default = 0, help = "Max plot length for circular", dest = "graph_length"),
+  make_option(c("--gff-file"), type = "character", default = NULL, help = "Overlapping GFF annotations", dest = "gff_file"),
+  make_option(c("--gff-tracks"), type = "character", default = NULL, help = "GFF types 'A,B,C'", dest = "gff_tracks"),
+  make_option(c("--trf-file"), type = "character", default = NULL, help = "Overlapping TRF-tsv annotations", dest = "trf_file"),
+  make_option(c("-o", "--output-prefix"), type = "character", default = NULL, help = "Output filename prefix", dest = "output_prefix"),
+  make_option(c("-f", "--output-format"), type = "character", default = "png", help = "Output image format (png, svg, etc)", dest = "output_format"),
+  make_option(c("-r", "--resolution"), type = "numeric", default = 300, help = "DPI resolution", dest = "resolution"),
+  make_option(c("-q", "--freq"), action = "store_true", default = FALSE, help = "Data is already frequencies", dest = "is_frequencies"),
+  make_option(c("-l", "--show-legend"), action = "store_true", default = FALSE, help = "Display color legend", dest = "show_legend"),
+  make_option(c("-y", "--ylims"), action = "store_false", default = TRUE, help = "Limit y-axis between 0,1", dest = "use_ylims"),
+  make_option(c("-x", "--scale"), type = "numeric", default = 1, help = "X-axis scale (Mb per inch)", dest = "x_scale"),
+  make_option(c("-a", "--axes"), action = "store_false", default = TRUE, help = "Display axes text", dest = "show_axes"),
+  make_option(c("-k", "--keep-scale"), action = "store_true", default = FALSE, help = "Keep absolute scale", dest = "keep_scale"),
+  make_option(c("--palette"), type = "character", default = "base", help = "Palette: base, dual", dest = "palette_type"),
+  make_option(c("-c", "--circular"), action = "store_true", default = FALSE, help = "Circular plot", dest = "is_circular"),
+  make_option(c("-t", "--transparent"), action = "store_true", default = FALSE, help = "Transparent background", dest = "is_transparent"),
+  make_option(c("--ngaps"), type = "character", default = NULL, help = "GFF of N-gap coordinates", dest = "ngaps_file")
 )
-options(error=traceback)
-parser = OptionParser(usage = "%prog -i triplet.tsv [options]",option_list=option_list)
-opt = parse_args(parser)
 
-# Prepare outputfile space. If no output given
-if(is.null(opt$output_filename)){
-	split_file = strsplit(opt$input_filename,"/")[[1]]
-	output_file = c(split_file[length(split_file)],opt$output_type)
-}else{
-	if(opt$output_type=="svg"){
-		suppressPackageStartupMessages(library(svglite))
-	}
-	output_file = c(opt$output_filename, opt$output_type)
+parser <- OptionParser(usage = "%prog -i triplet.tsv [options]", option_list = option_list)
+opt <- parse_args(parser)
+
+if (is.null(opt$input_filename)) {
+  cat("Error: No input TSV specified. Use -h for help.\n")
+  quit(status = 1)
 }
 
-# script info for finding utils folder
-scriptCommands = commandArgs(trailingOnly = FALSE)
-scriptArg = "--file="
-scriptLocation = sub(scriptArg, "", scriptCommands[grep(scriptArg, scriptCommands)])
+# Determine script directory for resource files
+args_all <- commandArgs(trailingOnly = FALSE)
+file_arg <- "--file="
+script_path <- sub(file_arg, "", args_all[grep(file_arg, args_all)])
+if (length(script_path) == 0) script_path <- "."
+script_dir <- dirname(script_path)
 
-# gff preparation
-gff = NULL
-if(!is.null(opt$gffFile)){
-	suppressPackageStartupMessages(library(ape))
-	gff = read.gff(opt$gffFile)
-	# filter
-	if(!is.null(opt$gffTracks)){
-		gff = gff %>% filter(type%in%unlist(strsplit(opt$gffTracks,',')))
-	}
-	if(!is.null(opt$window_size)){
-		coords = strsplit(opt$window_size,",")
-		gff = gff %>% filter(start >= as.numeric(coords[[1]][1]))
-		gff = gff %>% filter(end <= as.numeric(coords[[1]][2]))
-	}
+# Prepare output naming
+if (is.null(opt$output_prefix)) {
+  opt$output_prefix <- tools::file_path_sans_ext(basename(opt$input_filename))
+}
+if (opt$output_format == "svg") suppressPackageStartupMessages(library(svglite))
+
+# Load data
+values <- readr::read_tsv(opt$input_filename, show_col_types = FALSE)
+
+# Filtering
+if (!is.null(opt$libraries)) {
+  if (opt$use_regex) {
+    values <- values %>% filter(grepl(opt$libraries, Library))
+  } else {
+    values <- values %>% filter(Library %in% unlist(strsplit(opt$libraries, ",")))
+  }
+}
+if (!is.null(opt$sequences)) {
+  if (opt$use_regex) {
+    values <- values %>% filter(grepl(opt$sequences, Sequence))
+  } else {
+    values <- values %>% filter(Sequence %in% unlist(strsplit(opt$sequences, ",")))
+  }
+}
+if (!is.null(opt$window_range)) {
+  coords <- as.numeric(unlist(strsplit(opt$window_range, ",")))
+  values <- values %>% filter(Start >= coords[1], End <= coords[2])
 }
 
-# ngaps preparation
-ngaps = NULL
-if(!is.null(opt$ngaps)){
-    suppressPackageStartupMessages(library(ape))
-    ngaps = read.gff(opt$ngaps)
-    if(!is.null(opt$window_size)){
-		coords = strsplit(opt$window_size,",")
-		ngaps = ngaps %>% filter(start >= as.numeric(coords[[1]][1]))
-		ngaps = ngaps %>% filter(end <= as.numeric(coords[[1]][2]))
-	}
-}
-# trf preparation
-trf = NULL
-if(!is.null(opt$trfFile)){
-    trf = readr::read_tsv(opt$trfFile, show_col_types = FALSE)
-		# filter
-	if(!is.null(opt$window_size)){
-		coords = strsplit(opt$window_size,",")
-		trf = trf %>% filter(start >= as.numeric(coords[[1]][1]))
-		trf = trf %>% filter(end <= as.numeric(coords[[1]][2]))
-	}
+if (nrow(values) == 0) {
+  cat("Error: No data remains after filtering.\n")
+  quit(status = 1)
 }
 
-# read tsv values or exit with error
-if(is.null(opt$input_filename)){
-  cat("Error: No tsv specified. See usage 'with spectra-plot.r -h'\n")
-  quit()
-}else{
-    values = readr::read_tsv(opt$input_filename, show_col_types = FALSE)
+lib_names <- unique(values$Library)
+seq_names <- unique(values$Sequence)
+
+# Load auxiliary tracks
+load_gff <- function(path, range_str) {
+  if (is.null(path)) return(NULL)
+  suppressPackageStartupMessages(library(ape))
+  g <- read.gff(path)
+  if (!is.null(range_str)) {
+    crd <- as.numeric(unlist(strsplit(range_str, ",")))
+    g <- g %>% filter(start >= crd[1], end <= crd[2])
+  }
+  return(g)
 }
 
-# filter out wasteful data
-if(!is.null(opt$libraries)){
-	if(opt$regex){
-		values = values %>% filter(grepl(opt$libraries, Library))
-	}else{
-		values = values %>% filter(Library%in%as.vector(opt$libraries))
-	}
+gff_data <- load_gff(opt$gff_file, opt$window_range)
+if (!is.null(opt$gff_tracks) && !is.null(gff_data)) {
+  gff_data <- gff_data %>% filter(type %in% unlist(strsplit(opt$gff_tracks, ",")))
+}
+ngaps_data <- load_gff(opt$ngaps_file, opt$window_range)
+
+trf_data <- NULL
+if (!is.null(opt$trf_file)) {
+  trf_data <- readr::read_tsv(opt$trf_file, show_col_types = FALSE)
+  if (!is.null(opt$window_range)) {
+    crd <- as.numeric(unlist(strsplit(opt$window_range, ",")))
+    trf_data <- trf_data %>% filter(Start >= crd[1], End <= crd[2])
+  }
 }
 
-if(!is.null(opt$sequences)){
-	if(opt$regex){
-		values = values %>% filter(grepl(opt$sequences, Sequence))
-	}else{
-		values = values %>% filter(Sequence%in%as.vector(opt$sequences))
-	}
-}
+# Pivot and color setup
+values <- values %>% tidyr::pivot_longer(cols = starts_with(c("A", "C", "G", "T")))
+palette_csv <- file.path(script_dir, "includes", "paletteMatrix_base.csv")
 
-if(!is.null(opt$window_size)){
-	coords = strsplit(opt$window_size,",")
-	values = values %>% filter(Start >= as.numeric(coords[[1]][1]))
-	values = values %>% filter(End <= as.numeric(coords[[1]][2]))
-}
-
-lib.names = unique(values$Library)
-seq.names = unique(values$Sequence)
-
-if(length(lib.names)>1 && !is.null(opt$gffFile)){
-	print("Warning: the gff track will be omitted because multiple libraries are being plotted.")
-	gff = NULL
-}
-
-# Pivot table for stacking of columns
-values = values %>% tidyr::pivot_longer(cols=starts_with(c("A","C","G","T")))
-
-# Color and Palette building
-paletteOrderDF = read.csv(paste0(dirname(scriptLocation),"/includes/paletteMatrix_base.csv"))
-
-tripletNames=unique(values$name)
-paletteNames = c()
-for(colNum in 1:ncol(paletteOrderDF)){
-	for(rowNum in 1:nrow(paletteOrderDF)){
-		if(paletteOrderDF[rowNum,colNum] %in% tripletNames){
-			paletteNames = c(paletteNames,paletteOrderDF[rowNum,colNum][1])
-		}
-	}
-}
-
-tripletColors=sapply(paletteNames,paletteBuilder)
-if(opt$circular){
-    ## Current functionality will disregard the axes flag and omit axes.
-
-	# write multiple plots in a single frame if sequence names are the same
-    seq.filename = paste0(output_file[1], '.', output_file[2])
-    p = circularPlot(values, tripletColors, legend=opt$legend, frequencies=opt$frequencies, ylims=opt$ylims, opt$axes, paletteNames, opt$length)
-    trackOffset=-0.03
-    if(opt$transparent){
-        p = p + theme(panel.background = element_rect(fill='transparent'),plot.background = element_rect(fill='transparent', color=NA))
+if (file.exists(palette_csv)) {
+  palette_order <- read.csv(palette_csv, header = TRUE)
+  triplet_names <- unique(values$name)
+  palette_names <- c()
+  for (col in 1:ncol(palette_order)) {
+    for (row in 1:nrow(palette_order)) {
+      if (palette_order[row, col] %in% triplet_names) {
+        palette_names <- c(palette_names, as.character(palette_order[row, col]))
+      }
     }
-    ggsave(filename=seq.filename,device=output_file[2], width=10, height=10, units="in", dpi=opt$resolution, limitsize=F, bg='transparent')
-}else{
-	# write multiple plots in a single frame if sequence names are the same
-	for(seq in seq.names){
-		seq.filename = paste0(output_file[1], '_', seq, '.', output_file[2])
-		temp.values = values %>% filter(Sequence==seq)
+  }
+} else {
+  palette_names <- unique(values$name)
+}
+triplet_colors <- sapply(palette_names, palette_builder, palette = opt$palette_type)
 
-		# Calculate the necessary size to match the current scale
-		if(opt$keep){
-			temp.range =  (max(temp.values$End) - min(temp.values$Start) + 1) / (1000000 * opt$scale)
-			if(opt$legend){
-				temp.length = temp.range + 2
-			}else{
-				temp.length = temp.range + 0.5
-			}
-			if(!opt$axes){
-				temp.length = temp.length - 0.5
-			}
-		}else{
-			temp.length=10
-		}
+# --- Plotting Execution ---
 
-		if(length(lib.names)>1){
-			faceted=TRUE
-			height.factor = length(unique(temp.values$Library))
-		}else{
-			faceted=FALSE
-			height.factor = 1
-		}
-		p = spectraPlot(temp.values, tripletColors, legend=opt$legend, facet=faceted, frequencies=opt$frequencies, ylims=opt$ylims, temp.range, opt$scale, opt$axes, paletteNames)
-		trackOffset=-0.03
-		if(!is.null(ngaps)){
-		    if(any(ngaps$seqid==seq)){
-		        p = p + geom_rect(data=ngaps%>%filter(seqid==seq), aes(xmin=start-10000,xmax=end+10000, ymin=0,ymax=1), inherit.aes=FALSE, fill="black")
-		    }
-		}
-		if(!is.null(trf)){
-		    if(any(trf$Sequence==seq)){
-				p = p + geom_line(data=trf%>%filter(Sequence==seq), aes(x=(End+Start)/2, y=(Proportion-1.12)/4), color="black", size=0.25) + scale_y_continuous(limits=c(-.28, 1), expand=c(0, 0))
-			}
-			trackOffset = trackOffset - .03
-		}
-        if(opt$transparent){
-            p = p + theme(panel.background = element_rect(fill='transparent'),plot.background = element_rect(fill='transparent', color=NA))
+if (opt$is_circular) {
+  out_name <- paste0(opt$output_prefix, ".", opt$output_format)
+  p <- create_circular_plot(values, triplet_colors, legend = opt$show_legend,
+                          frequencies = opt$is_frequencies, ylims = opt$use_ylims,
+                          limit = opt$graph_length)
+  if (opt$is_transparent) {
+    p <- p + theme(panel.background = element_rect(fill = "transparent"),
+                 plot.background = element_rect(fill = "transparent", color = NA))
+  }
+  ggsave(filename = out_name, device = opt$output_format, width = 10, height = 10,
+         units = "in", dpi = opt$resolution, limitsize = FALSE, bg = "transparent")
+} else {
+  for (seq in seq_names) {
+    out_name <- paste0(opt$output_prefix, "_", seq, ".", opt$output_format)
+    temp_values <- values %>% filter(Sequence == seq)
+
+    # Scaling logic
+    if (opt$keep_scale) {
+      temp_range <- (max(temp_values$End) - min(temp_values$Start) + 1) / (1e6 * opt$x_scale)
+      temp_length <- temp_range + (if (opt$show_legend) 2 else 0.5)
+      if (!opt$show_axes) temp_length <- temp_length - 0.5
+    } else {
+      temp_length <- 10
+    }
+
+    height_factor <- if (length(lib_names) > 1) length(unique(temp_values$Library)) else 1
+
+    p <- create_spectra_plot(temp_values, triplet_colors, legend = opt$show_legend,
+                           facet = (length(lib_names) > 1), frequencies = opt$is_frequencies,
+                           ylims = opt$use_ylims, scale = opt$x_scale, axes = opt$show_axes)
+
+    if (!is.null(ngaps_data)) {
+      seq_gaps <- ngaps_data %>% filter(seqid == seq)
+      if (nrow(seq_gaps) > 0) {
+        p <- p + geom_rect(data = seq_gaps, aes(xmin = start - 10000, xmax = end + 10000,
+                                             ymin = 0, ymax = 1),
+                          inherit.aes = FALSE, fill = "black")
+      }
+    }
+
+    if (!is.null(trf_data)) {
+      seq_trf <- trf_data %>% filter(Sequence == seq)
+      if (nrow(seq_trf) > 0) {
+        p <- p + geom_line(data = seq_trf, aes(x = (End + Start) / 2, y = (Proportion - 1.12) / 4),
+                          color = "black", size = 0.25) +
+          scale_y_continuous(limits = c(-0.28, 1), expand = c(0, 0))
+      }
+    }
+
+    if (opt$is_transparent) {
+      p <- p + theme(panel.background = element_rect(fill = "transparent"),
+                   plot.background = element_rect(fill = "transparent", color = NA))
+    }
+
+    ggsave(filename = out_name, device = opt$output_format, width = temp_length,
+           height = 1 + height_factor * 2, units = "in", dpi = opt$resolution, limitsize = FALSE)
+
+    # Optional GFF track plot
+    if (!is.null(gff_data)) {
+      seq_gff <- gff_data %>% filter(seqid == seq)
+      if (nrow(seq_gff) > 0) {
+        height_gff <- length(unique(seq_gff$type))
+        pg <- ggplot(seq_gff, aes(xmin = start, xmax = end, ymin = 0.1, ymax = 0.2, fill = strand)) +
+          geom_rect() +
+          scale_y_continuous(limits = c(0.1, 0.2), expand = c(0, 0)) +
+          scale_x_continuous(expand = c(0, 0)) +
+          theme_bw() + ylab("") + xlab("Position (bp)") +
+          theme(legend.position = "none", axis.ticks.y = element_blank(),
+                axis.text.y = element_blank(),
+                strip.text.y = element_text(size = 4, colour = "black", angle = 90)) +
+          facet_grid(rows = vars(type))
+
+        if (opt$is_transparent) {
+          pg <- pg + theme(panel.background = element_rect(fill = "transparent"),
+                         plot.background = element_rect(fill = "transparent", color = NA))
         }
-		ggsave(filename=seq.filename,device=output_file[2], width=temp.length, height=1+height.factor*2, units="in", dpi=opt$resolution, limitsize=F)
 
-		if(!is.null(gff)){
-		  if(length(gff[,1])>0){
-            height.factor=length(vars(gff$type))
-		    p = ggplot(gff%>%filter(seqid==seq), aes(xmin=start, xmax=end, ymin=0.1, ymax=0.2, fill=strand)) +
-		     geom_rect() +
-		     scale_y_continuous(limits=c(0.1, 0.2), expand=c(0,0)) + scale_x_continuous(expand=c(0,0))+
-		     theme_bw() +
-		     ylab("")+
-		     xlab("Position (bp)") +
-		     theme(
-		        legend.position = "none",
-		        axis.ticks.y=element_blank(),
-		        axis.text.y=element_blank(),
-		        strip.text.y = element_text(size = 4, colour = "black", angle = 90)
-		     )+facet_grid(rows=vars(type))
-            if(opt$transparent){
-                p = p + theme(panel.background = element_rect(fill='transparent'),plot.background = element_rect(fill='transparent', color=NA))
-            }
-		    ggsave(filename=paste0(output_file[1], '_gff_', seq, '.', output_file[2]),device=output_file[2], width=temp.length+.26, height=0.6+(0.35*height.factor), units="in", dpi=opt$resolution, limitsize=F)
-		  }
-		}
-		
-	}
+        gff_out <- paste0(opt$output_prefix, "_gff_", seq, ".", opt$output_format)
+        ggsave(filename = gff_out, device = opt$output_format, width = temp_length + 0.26,
+               height = 0.6 + (0.35 * height_gff), units = "in", dpi = opt$resolution, limitsize = FALSE)
+      }
+    }
+  }
 }

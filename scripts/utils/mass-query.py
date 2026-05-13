@@ -21,24 +21,20 @@ def window_tasks(sequence_record, width, spacing, sequence_name, offset=0):
         if not window:
             continue
         start = i + offset
-        # The original script uses min(i+width+offset, seq_len+offset) for end
-        # and start + len(windowSeq) for end in windowCount.
-        # We'll use the actual window length to be precise.
         window_str = str(window)
         end = start + len(window_str)
         yield (window_str, sequence_name, start, end)
 
 def process_window(task):
-    windowSeq, sequence_name, start, end = task
+    window_seq, sequence_name, start, end = task
     local_counts = Counter()
-    for i in range(len(windowSeq) - GLOBAL_MER_SIZE + 1):
-        kmer = windowSeq[i:i + GLOBAL_MER_SIZE]
+    for i in range(len(window_seq) - GLOBAL_MER_SIZE + 1):
+        kmer = window_seq[i:i + GLOBAL_MER_SIZE]
         if kmer in GLOBAL_KMER_MAP:
             for bin_name in GLOBAL_KMER_MAP[kmer]:
                 local_counts[bin_name] += 1
 
     rows = []
-    # To maintain compatibility with multi-pass output, we return rows for all bins
     for bin_name in GLOBAL_BINS:
         rows.append([sequence_name, bin_name, start + 1, end, local_counts.get(bin_name, 0)])
     return rows
@@ -53,7 +49,7 @@ def init_worker(kmer_map, mer_size, bins):
 
 def main():
     # CLI arguments
-    parser = argparse.ArgumentParser(description="Kmer Mass Query: localize percentile kmers in genomic sequences (optimized)")
+    parser = argparse.ArgumentParser(description="Kmer Mass Query: localize percentile kmers in genomic sequences")
     parser.add_argument('-i', '--input', dest='input', required=True, help='Input sequence file (FASTA/FASTQ)')
     parser.add_argument('-f', '--format', default='fasta', help='Input file type [default fasta]')
     parser.add_argument('-q', '--query', required=True, help='Ranked query table file (tsv)')
@@ -67,16 +63,17 @@ def main():
     parser.add_argument('-e', '--percentile-keep', type=int, dest='percentile_keep', default=5, help='Extreme kmer tabulation. Top and bottom N percent kept [default 5]')
     parser.add_argument('-k', '--chunk-size', dest='chunk_size', type=int, help='Max chunk size to work on [default 30000000]', default=30000000)
     parser.add_argument('-t', '--threads', type=int, default=1, help='Number of threads for parallel processing [default 1]')
-    parser.add_argument('-x', '--inverse', action='store_true', help='(Deprecated) Tabulate the inverse (now always efficient)')
     parser.add_argument('--minimum-size', dest='minimum_size', type=int, help='Minimum sequence size to include.', default=15000)
 
     args = parser.parse_args()
 
     # Logging
-    logging.basicConfig(level=logging.INFO if args.verbose else logging.ERROR, format='%(levelname)s: %(message)s')
+    logging.basicConfig(level=logging.ERROR, format='%(levelname)s: %(message)s')
     logger = logging.getLogger()
+    if args.verbose:
+        logger.setLevel(logging.INFO)
 
-    startTime = time.time()
+    start_time = time.time()
 
     if not os.path.exists(args.input):
         logger.error(f"Couldn't find input sequence file '{args.input}'")
@@ -91,11 +88,15 @@ def main():
 
     # Count total kmers
     logger.info("Counting kmers in query file...")
-    with open(args.query) as f:
-        f.readline() # skip header
-        tableLength = sum(1 for _ in f)
+    try:
+        with open(args.query) as f:
+            f.readline() # skip header
+            table_length = sum(1 for _ in f)
+    except Exception as e:
+        logger.error(f"Error reading query file: {e}")
+        return
 
-    logger.info(f"Query has {tableLength:,} kmers")
+    logger.info(f"Query has {table_length:,} kmers")
 
     # Identify bins of interest
     step = args.percentile_step
@@ -109,21 +110,25 @@ def main():
     logger.info("Loading kmers into bins...")
     kmer_map = defaultdict(list)
     bin_names = []
-    for b in interest_bins:
-        start_idx = int(b / 100 * tableLength)
-        end_idx = int(min(100, b + step) / 100 * tableLength)
-        bin_name = f"pct{b + step:03d}"
-        bin_names.append(bin_name)
+    try:
+        for b in interest_bins:
+            start_idx = int(b / 100 * table_length)
+            end_idx = int(min(100, b + step) / 100 * table_length)
+            bin_name = f"pct{b + step:03d}"
+            bin_names.append(bin_name)
 
-        with open(args.query) as f:
-            f.readline() # skip header
-            for idx, line in enumerate(f):
-                if idx < start_idx: continue
-                if idx >= end_idx: break
-                kmer = line.strip().split("\t")[0].upper()
-                kmer_map[kmer].append(bin_name)
-                if args.complement:
-                    kmer_map[rc(kmer)].append(bin_name)
+            with open(args.query) as f:
+                f.readline() # skip header
+                for idx, line in enumerate(f):
+                    if idx < start_idx: continue
+                    if idx >= end_idx: break
+                    kmer = line.strip().split("\t")[0].upper()
+                    kmer_map[kmer].append(bin_name)
+                    if args.complement:
+                        kmer_map[rc(kmer)].append(bin_name)
+    except Exception as e:
+        logger.error(f"Error mapping kmers to bins: {e}")
+        return
 
     logger.info(f"Loaded {len(kmer_map):,} unique kmers across {len(bin_names)} bins")
 
@@ -131,38 +136,42 @@ def main():
     pool = multiprocessing.Pool(processes=args.threads, initializer=init_worker, initargs=(kmer_map, args.mer_size, bin_names))
 
     # Prepare output
-    with open(args.output, "w", newline="") as fileOutput:
-        tsvWriter = csv.writer(fileOutput, delimiter="\t")
-        tsvWriter.writerow(["Sequence", "Bin", "Start", "End", "Count"])
+    try:
+        with open(args.output, "w", newline="") as file_output:
+            tsv_writer = csv.writer(file_output, delimiter="\t")
+            tsv_writer.writerow(["Sequence", "Bin", "Start", "End", "Count"])
 
-        # Scan genome once
-        for record in SeqIO.parse(args.input, args.format):
-            sequence_name = record.id
-            sequenceLength = len(record)
-            if sequenceLength < args.minimum_size:
-                continue
+            # Scan genome once
+            for record in SeqIO.parse(args.input, args.format):
+                sequence_name = record.id
+                sequence_length = len(record)
+                if sequence_length < args.minimum_size:
+                    continue
 
-            logger.info(f"Processing sequence {sequence_name} ({sequenceLength:,} bp)")
+                logger.info(f"Processing sequence {sequence_name} ({sequence_length:,} bp)")
 
-            if sequenceLength > args.chunk_size:
-                for i in range(0, sequenceLength, args.chunk_size):
-                    sub_seq = str(record.seq[i:i + args.chunk_size]).upper()
-                    tasks = window_tasks(sub_seq, args.width, args.spacing, sequence_name, offset=i)
+                if sequence_length > args.chunk_size:
+                    for i in range(0, sequence_length, args.chunk_size):
+                        sub_seq = str(record.seq[i:i + args.chunk_size]).upper()
+                        tasks = window_tasks(sub_seq, args.width, args.spacing, sequence_name, offset=i)
+                        for result_rows in pool.imap(process_window, tasks):
+                            for row in result_rows:
+                                tsv_writer.writerow(row)
+                        del sub_seq
+                else:
+                    seq_str = str(record.seq).upper()
+                    tasks = window_tasks(seq_str, args.width, args.spacing, sequence_name)
                     for result_rows in pool.imap(process_window, tasks):
                         for row in result_rows:
-                            tsvWriter.writerow(row)
-                    del sub_seq
-            else:
-                seq_str = str(record.seq).upper()
-                tasks = window_tasks(seq_str, args.width, args.spacing, sequence_name)
-                for result_rows in pool.imap(process_window, tasks):
-                    for row in result_rows:
-                        tsvWriter.writerow(row)
-                del seq_str
+                            tsv_writer.writerow(row)
+                    del seq_str
+    except Exception as e:
+        logger.error(f"Error during mass query processing: {e}")
+    finally:
+        pool.close()
+        pool.join()
 
-    pool.close()
-    pool.join()
-    logger.info(f"Execution time in seconds: {time.time() - startTime:.2f}")
+    logger.info(f"Execution time in seconds: {time.time() - start_time:.2f}")
 
 if __name__ == "__main__":
     main()
