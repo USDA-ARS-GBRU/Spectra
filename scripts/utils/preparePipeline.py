@@ -2,6 +2,20 @@
 import argparse
 import os
 import sys
+import shlex
+import subprocess
+
+def get_memory_limit():
+    """Attempt to detect total system memory in GB."""
+    try:
+        # Linux/Unix using os.sysconf
+        return (os.sysconf('SC_PAGE_SIZE') * os.sysconf('SC_PHYS_PAGES')) // (1024**3)
+    except (ValueError, AttributeError, OSError):
+        try:
+            # Fallback for macOS if sysconf fails
+            return int(subprocess.check_output(['sysctl', '-n', 'hw.memsize']).strip()) // (1024**3)
+        except (subprocess.CalledProcessError, FileNotFoundError, ValueError):
+            return 4  # Default to 4GB if detection fails
 
 # CLI arguments
 def main():
@@ -19,6 +33,10 @@ def main():
     parser.add_argument('--jellyfish-path', dest='jf_path', type=str, default='jellyfish', help='Jellyfish2 path. Default assumes it is in your env [default jellyfish]')
     parser.add_argument('--jellyfish-disk', dest='jf_disk', action='store_true', default=False, help='Use Jellyfish2 count disk parameter for large raw data files [default False]')
     parser.add_argument('--jellyfish-count-sep', dest='jf_sep', action='store_true', default=False, help='Process multiple raw inputs separately before joining together instead of as one count [default False]')
+    parser.add_argument('-c', '--counter', dest='counter', choices=['jellyfish', 'meryl'], default='jellyfish', help='K-mer counter to use [default jellyfish]')
+    parser.add_argument('--meryl-memory', dest='meryl_memory', type=str, default=None, help='Meryl memory parameter (e.g. 16G). If not set, it will be automatically detected')
+    parser.add_argument('--meryl-path', dest='meryl_path', type=str, default='meryl', help='Meryl path. Default assumes it is in your env [default meryl]')
+    parser.add_argument('--hard-links', dest='hard_links', action='store_true', default=False, help='Hard-link input files into the current directory for processing [default False]')
     parser.add_argument('--python-callable', dest='python', type=str, default='python', help='python3 path. Default assumes it is in your env [default python]')
     parser.add_argument('--spectra-callable', dest='spectra', type=str, default=None, help='Spectra path. If not set, automatically detected from this script')
     parser.add_argument('--rscript-callable', dest='rscript', type=str, default='Rscript', help='Rscript path. Default assumes it is in your env [default Rscript]')
@@ -33,6 +51,9 @@ def main():
     parser.add_argument('--keep', dest='keep', action='store_false', help='Clean workspace as files are processed. Jellyfish kmer counts are very large. By default, these files are removed after processing.', default=True)
     parser.add_argument('--variable-paths', dest='variable', action='store_true', help='Code will use variables for naming of analysis files. Default is hard paths.', default=False)
     args = parser.parse_args()
+
+    if args.counter == 'meryl' and args.meryl_memory is None:
+        args.meryl_memory = f"{get_memory_limit()}G"
 
     spectra_path = args.spectra if args.spectra else os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     if spectra_path.endswith('/'):
@@ -57,9 +78,11 @@ def main():
     # Begin writing the script file
     with open(args.output, 'w') as f:
         f.write(
-            "#!/bin/bash\n\n"
+            "#!/bin/bash\n"
+            "set -e\n"
+            "set -o pipefail\n\n"
             "###### This code requires your path to have:\n"
-            "### jellyfish2\n"
+            f"### {args.counter} (or counter of choice)\n"
             "### python3\n"
             "### R4\n"
             "### Spectra + dependencies\n"
@@ -67,78 +90,129 @@ def main():
         )
 
         f.write("##### Code generated using the command:\n")
-        f.write(f"# {' '.join(sys.argv)}\n")
+        f.write(f"# {' '.join([shlex.quote(arg) for arg in sys.argv])}\n")
         f.write("#####\n\n")
 
         # If variables required, define variables from argument parser.
-        variable_names = ["output", "prefix", "threads", "mer_size", "minimum_size", "jf_bloom", "jf_path", "python", "rscript", "sample_size", "chunk_size", "percentile", "raw_min", "asm_min", "mq_window", "spectra_window", "assembled"]
+        variable_names = ["output", "prefix", "threads", "mer_size", "minimum_size", "jf_bloom", "jf_path", "python", "rscript", "sample_size", "chunk_size", "percentile", "raw_min", "asm_min", "mq_window", "spectra_window", "assembled", "meryl_path", "meryl_memory"]
 
         if args.variable:
-            variables = {name: "${" + f"{name}" + "}" for name in variable_names}
+            variables = {name: f'"${{{name}}}"' for name in variable_names}
             f.write("##### Naming variables to be used in analysis.\n")
             for name in variable_names:
-                f.write(f'{name}="{args.__dict__[name]}"\n')
+                f.write(f'{name}={shlex.quote(str(args.__dict__[name]))}\n')
             for i in range(len(args.raw)):
-                f.write(f'raw_{i}="{args.raw[i]}"\n')
-            variables['raw'] = [("${raw_" + f"{i}" + "}", args.raw[i].lower().endswith((".gz", ".gzip"))) for i in range(len(args.raw))]
+                f.write(f'raw_{i}={shlex.quote(args.raw[i])}\n')
+            variables['raw'] = [(f'"${{raw_{i}}}"', args.raw[i].lower().endswith((".gz", ".gzip"))) for i in range(len(args.raw))]
             f.write("#####\n\n")
         else:
-            variables = {name: args.__dict__[name] for name in variable_names}
-            variables['raw'] = [(i, i.lower().endswith(("gz", "gzip"))) for i in args.raw]
+            variables = {name: shlex.quote(str(args.__dict__[name])) for name in variable_names}
+            variables['raw'] = [(shlex.quote(i), i.lower().endswith(("gz", "gzip"))) for i in args.raw]
 
         f.write("##### Image output directory.\n")
         f.write(f"mkdir -p {variables['prefix']}\n\n")
 
-        # Begin writing raw jellyfish code
-        f.write("###### Run raw jellyfish calculations, then dump and sort kmers above minimum.\n")
-        if args.time:
-            f.write(f'echo "Starting {variables["mer_size"]}-mer processing on raw data at:"\ndate\n')
+        if args.hard_links:
+            f.write("##### Hard-linking input files to current directory for processing.\n")
+            new_raw = []
+            for i, (raw_path, is_gz) in enumerate(variables['raw']):
+                local_raw = shlex.quote(f"local_raw_{i}.fasta" + (".gz" if is_gz else ""))
+                f.write(f"ln -f {raw_path} {local_raw}\n")
+                new_raw.append((local_raw, is_gz))
+            variables['raw'] = new_raw
 
-        if len(variables['raw']) > 1:
-            if args.jf_sep:
-                for i in range(len(variables['raw'])):
-                    f.write(f"{variables['jf_path']} count {'--disk ' if args.jf_disk else ''}-t {variables['threads']} -s {variables['jf_bloom']} -m {variables['mer_size']} -o {variables['prefix']}_rcp_{os.path.basename(str(variables['raw'][i][0]))}.jfc -C " + (f"<(zcat {variables['raw'][i][0]})\n" if variables['raw'][i][1] else f"{variables['raw'][i][0]}\n"))
-                    f.write(f"{variables['jf_path']} stats {variables['prefix']}_rcp_{os.path.basename(str(variables['raw'][i][0]))}.jfc > {variables['prefix']}_rcp_{os.path.basename(str(variables['raw'][i][0]))}.jstats\n")
-                f.write(f"{variables['jf_path']} merge -o {variables['prefix']}_raw_count.jfc {variables['prefix']}_rcp_*.jfc\n")
+            local_asm = shlex.quote("local_assembled.fasta")
+            f.write(f"ln -f {variables['assembled']} {local_asm}\n")
+            variables['assembled'] = local_asm
+            f.write("\n")
+
+        if args.counter == 'jellyfish':
+            # Begin writing raw jellyfish code
+            f.write("###### Run raw jellyfish calculations, then dump and sort kmers above minimum.\n")
+            if args.time:
+                f.write(f'echo "Starting {variables["mer_size"]}-mer processing on raw data at:"\ndate\n')
+
+            if len(variables['raw']) > 1:
+                if args.jf_sep:
+                    for i in range(len(variables['raw'])):
+                        prefix_rcp = f"{variables['prefix']}_rcp_{shlex.quote(os.path.basename(str(args.raw[i])))}"
+                        f.write(f"{variables['jf_path']} count {'--disk ' if args.jf_disk else ''}-t {variables['threads']} -s {variables['jf_bloom']} -m {variables['mer_size']} -o {prefix_rcp}.jfc -C " + (f"<(zcat {variables['raw'][i][0]})\n" if variables['raw'][i][1] else f"{variables['raw'][i][0]}\n"))
+                        f.write(f"{variables['jf_path']} stats {prefix_rcp}.jfc > {prefix_rcp}.jstats\n")
+                    f.write(f"{variables['jf_path']} merge -o {variables['prefix']}_raw_count.jfc {variables['prefix']}_rcp_*.jfc\n")
+                else:
+                    f.write(f"{variables['jf_path']} count {'--disk ' if args.jf_disk else ''}-t {variables['threads']} -s {variables['jf_bloom']} -m {variables['mer_size']} -o {variables['prefix']}_raw_count.jfc -C " + ' '.join([f"<({'z' if i[1] else ''}cat {i[0]})" for i in variables['raw']]) + '\n')
             else:
-                f.write(f"{variables['jf_path']} count {'--disk ' if args.jf_disk else ''}-t {variables['threads']} -s {variables['jf_bloom']} -m {variables['mer_size']} -o {variables['prefix']}_raw_count.jfc -C " + ' '.join([f"<({'z' if i[1] else ''}cat {i[0]})" for i in variables['raw']]) + '\n')
-        else:
-            f.write(f"{variables['jf_path']} count {'--disk ' if args.jf_disk else ''}-t {variables['threads']} -s {variables['jf_bloom']} -m {variables['mer_size']} -o {variables['prefix']}_raw_count.jfc -C "+ (f"<(zcat {variables['raw'][0][0]})\n" if variables['raw'][0][1] else f"{variables['raw'][0][0]}\n"))
+                f.write(f"{variables['jf_path']} count {'--disk ' if args.jf_disk else ''}-t {variables['threads']} -s {variables['jf_bloom']} -m {variables['mer_size']} -o {variables['prefix']}_raw_count.jfc -C "+ (f"<(zcat {variables['raw'][0][0]})\n" if variables['raw'][0][1] else f"{variables['raw'][0][0]}\n"))
 
-        f.write(f"{variables['jf_path']} stats {variables['prefix']}_raw_count.jfc > {variables['prefix']}_raw_count.jstats\n")
-        f.write(f"{variables['jf_path']} histo {variables['prefix']}_raw_count.jfc > {variables['prefix']}_raw_count.jhisto\n")
-        f.write(f"{variables['jf_path']} dump -L {variables['raw_min']} -c {variables['prefix']}_raw_count.jfc |sort > {variables['prefix']}_raw.jdump\n")
+            f.write(f"{variables['jf_path']} stats {variables['prefix']}_raw_count.jfc > {variables['prefix']}_raw_count.jstats\n")
+            f.write(f"{variables['jf_path']} histo {variables['prefix']}_raw_count.jfc > {variables['prefix']}_raw_count.jhisto\n")
+            f.write(f"{variables['jf_path']} dump -L {variables['raw_min']} -c {variables['prefix']}_raw_count.jfc |sort > {variables['prefix']}_raw.jdump\n")
 
-        if args.time:
-            f.write(f'echo "Ending {variables["mer_size"]}-mer processing on raw data at:"\ndate\n\n')
+            if args.time:
+                f.write(f'echo "Ending {variables["mer_size"]}-mer processing on raw data at:"\ndate\n\n')
 
-        if args.keep:
-            f.write(f"rm {variables['prefix']}_r*.jfc\n\n")
-        else:
-            f.write('\n')
+            if args.keep:
+                f.write(f"rm {variables['prefix']}_r*.jfc\n\n")
+            else:
+                f.write('\n')
 
-        # Begin writing assembly jellyfish code
-        f.write("###### Run assembly jellyfish calculations, then dump and sort kmers above minimum.\n")
-        if args.time:
-            f.write(f'echo "Starting {variables["mer_size"]}-mer processing on assembly data at:"\ndate\n')
-        f.write(f"{variables['jf_path']} count -t {variables['threads']} -s {variables['jf_bloom']} -m {variables['mer_size']} -o {variables['prefix']}_asm_count.jfc -C {variables['assembled']}\n")
-        f.write(f"{variables['jf_path']} stats {variables['prefix']}_asm_count.jfc > {variables['prefix']}_asm_count.jstats\n")
-        f.write(f"{variables['jf_path']} histo {variables['prefix']}_asm_count.jfc > {variables['prefix']}_asm_count.jhisto\n")
-        f.write(f"{variables['jf_path']} dump -L {variables['asm_min']} -c {variables['prefix']}_asm_count.jfc |sort > {variables['prefix']}_asm.jdump\n")
-        if args.time:
-            f.write(f'echo "Ending {variables["mer_size"]}-mer processing on assembly data at:"\ndate\n\n')
+            # Begin writing assembly jellyfish code
+            f.write("###### Run assembly jellyfish calculations, then dump and sort kmers above minimum.\n")
+            if args.time:
+                f.write(f'echo "Starting {variables["mer_size"]}-mer processing on assembly data at:"\ndate\n')
+            f.write(f"{variables['jf_path']} count -t {variables['threads']} -s {variables['jf_bloom']} -m {variables['mer_size']} -o {variables['prefix']}_asm_count.jfc -C {variables['assembled']}\n")
+            f.write(f"{variables['jf_path']} stats {variables['prefix']}_asm_count.jfc > {variables['prefix']}_asm_count.jstats\n")
+            f.write(f"{variables['jf_path']} histo {variables['prefix']}_asm_count.jfc > {variables['prefix']}_asm_count.jhisto\n")
+            f.write(f"{variables['jf_path']} dump -L {variables['asm_min']} -c {variables['prefix']}_asm_count.jfc |sort > {variables['prefix']}_asm.jdump\n")
+            if args.time:
+                f.write(f'echo "Ending {variables["mer_size"]}-mer processing on assembly data at:"\ndate\n\n')
 
-        if args.keep:
-            f.write(f"rm {variables['prefix']}_asm_count.jfc\n\n")
-        else:
-            f.write('\n')
+            if args.keep:
+                f.write(f"rm {variables['prefix']}_asm_count.jfc\n\n")
+            else:
+                f.write('\n')
+
+        elif args.counter == 'meryl':
+            # Begin writing raw meryl code
+            f.write("###### Run raw meryl calculations, then dump and sort kmers above minimum.\n")
+            if args.time:
+                f.write(f'echo "Starting {variables["mer_size"]}-mer processing on raw data at:"\ndate\n')
+
+            f.write(f"{variables['meryl_path']} count k={variables['mer_size']} memory={variables['meryl_memory']} threads={variables['threads']} output {variables['prefix']}_raw_count " + ' '.join([i[0] for i in variables['raw']]) + "\n")
+            f.write(f"{variables['meryl_path']} statistics {variables['prefix']}_raw_count > {variables['prefix']}_raw_count.jstats\n")
+            f.write(f"{variables['meryl_path']} histogram {variables['prefix']}_raw_count > {variables['prefix']}_raw_count.jhisto\n")
+            f.write(f"{variables['meryl_path']} print at-least {variables['raw_min']} {variables['prefix']}_raw_count | sort > {variables['prefix']}_raw.jdump\n")
+
+            if args.time:
+                f.write(f'echo "Ending {variables["mer_size"]}-mer processing on raw data at:"\ndate\n\n')
+
+            if args.keep:
+                f.write(f"rm -rf {variables['prefix']}_raw_count\n\n")
+            else:
+                f.write('\n')
+
+            # Begin writing assembly meryl code
+            f.write("###### Run assembly meryl calculations, then dump and sort kmers above minimum.\n")
+            if args.time:
+                f.write(f'echo "Starting {variables["mer_size"]}-mer processing on assembly data at:"\ndate\n')
+            f.write(f"{variables['meryl_path']} count k={variables['mer_size']} memory={variables['meryl_memory']} threads={variables['threads']} output {variables['prefix']}_asm_count {variables['assembled']}\n")
+            f.write(f"{variables['meryl_path']} statistics {variables['prefix']}_asm_count > {variables['prefix']}_asm_count.jstats\n")
+            f.write(f"{variables['meryl_path']} histogram {variables['prefix']}_asm_count > {variables['prefix']}_asm_count.jhisto\n")
+            f.write(f"{variables['meryl_path']} print at-least {variables['asm_min']} {variables['prefix']}_asm_count | sort > {variables['prefix']}_asm.jdump\n")
+            if args.time:
+                f.write(f'echo "Ending {variables["mer_size"]}-mer processing on assembly data at:"\ndate\n\n')
+
+            if args.keep:
+                f.write(f"rm -rf {variables['prefix']}_asm_count\n\n")
+            else:
+                f.write('\n')
 
         # Begin writing kmer comparison code
         f.write(f"###### Generate kmer comparison\n")
         if args.time:
             f.write(f"echo 'Starting k-mer comparison and ranking at:'\ndate\n")
-        f.write(f"{variables['python']} {spectra_path}/scripts/utils/kmerComp.py -r {variables['prefix']}_raw.jdump -a {variables['prefix']}_asm.jdump -k {variables['mer_size']} -o {variables['prefix']}/{variables['prefix']}_kmer_comp -s {variables['sample_size']} -p {variables['percentile']} -v\n")
-        f.write(f"{variables['python']} {spectra_path}/scripts/utils/kmerRank.py -r {variables['prefix']}_raw.jdump -a {variables['prefix']}_asm.jdump -o {variables['prefix']}_kmer_rank.tsv -c {variables['chunk_size']} -v\n")
+        f.write(f"{variables['python']} {shlex.quote(spectra_path + '/scripts/utils/kmerComp.py')} -r {variables['prefix']}_raw.jdump -a {variables['prefix']}_asm.jdump -k {variables['mer_size']} -o {variables['prefix']}/{variables['prefix']}_kmer_comp -s {variables['sample_size']} -p {variables['percentile']} -v\n")
+        f.write(f"{variables['python']} {shlex.quote(spectra_path + '/scripts/utils/kmerRank.py')} -r {variables['prefix']}_raw.jdump -a {variables['prefix']}_asm.jdump -o {variables['prefix']}_kmer_rank.tsv -c {variables['chunk_size']} -v\n")
         if args.time:
             f.write(f"echo 'Ending k-mer comparison and ranking at:'\ndate\n\n")
 
@@ -151,8 +225,8 @@ def main():
         f.write(f"###### Generate and plot localization of extreme kmers\n")
         if args.time:
             f.write(f'echo "Starting {variables["mer_size"]}-mer localization at:"\ndate\n')
-        f.write(f"{variables['python']} {spectra_path}/scripts/utils/mass-query.py -i {variables['assembled']} -q {variables['prefix']}_kmer_rank.tsv -m {variables['mer_size']} -o {variables['prefix']}_mass_query.tsv -c -w {variables['mq_window']} -t {variables['threads']} -s {variables['mq_window']} --minimum-size {variables['minimum_size']} -e {variables['percentile']} -v\n")
-        f.write(f"{variables['rscript']} {spectra_path}/scripts/utils/mass-query-plot.r -i {variables['prefix']}_mass_query.tsv -o {variables['prefix']}/{variables['prefix']}_mass -u\n")
+        f.write(f"{variables['python']} {shlex.quote(spectra_path + '/scripts/utils/mass-query.py')} -i {variables['assembled']} -q {variables['prefix']}_kmer_rank.tsv -m {variables['mer_size']} -o {variables['prefix']}_mass_query.tsv -c -w {variables['mq_window']} -t {variables['threads']} -s {variables['mq_window']} --minimum-size {variables['minimum_size']} -e {variables['percentile']} -v\n")
+        f.write(f"{variables['rscript']} {shlex.quote(spectra_path + '/scripts/utils/mass-query-plot.r')} -i {variables['prefix']}_mass_query.tsv -o {variables['prefix']}/{variables['prefix']}_mass -u\n")
         if args.time:
             f.write(f'echo "Ending {variables["mer_size"]}-mer localization at:"\ndate\n\n')
         else:
@@ -162,15 +236,15 @@ def main():
         f.write("###### Generate Spectra\n")
         if args.time:
             f.write(f"echo 'Starting 3-mer localization at:'\ndate\n")
-        f.write(f"{variables['python']} {spectra_path}/spectra.py count -w {variables['spectra_window']} -s {variables['spectra_window']} -i {variables['assembled']} -o {variables['prefix']}_spectra.tsv --minimum-size {variables['minimum_size']} -t {variables['threads']} -v\n")
-        f.write(f"{variables['rscript']} {spectra_path}/spectra-plot.r -i {variables['prefix']}_spectra.tsv -o {variables['prefix']}/{variables['prefix']}_circular -c -a\n")
+        f.write(f"{variables['python']} {shlex.quote(spectra_path + '/spectra.py')} count -w {variables['spectra_window']} -s {variables['spectra_window']} -i {variables['assembled']} -o {variables['prefix']}_spectra.tsv --minimum-size {variables['minimum_size']} -t {variables['threads']} -v\n")
+        f.write(f"{variables['rscript']} {shlex.quote(spectra_path + '/spectra-plot.r')} -i {variables['prefix']}_spectra.tsv -o {variables['prefix']}/{variables['prefix']}_circular -c -a\n")
 
-        spectra_string = f"{variables['rscript']} {spectra_path}/spectra-plot.r -i {variables['prefix']}_spectra.tsv -o {variables['prefix']}/{variables['prefix']}_spectra"
+        spectra_string = f"{variables['rscript']} {shlex.quote(spectra_path + '/spectra-plot.r')} -i {variables['prefix']}_spectra.tsv -o {variables['prefix']}/{variables['prefix']}_spectra"
         if args.bins:
-            f.write(f"{variables['python']} {spectra_path}/spectra.py analyze -i {variables['prefix']}_spectra.tsv -o {variables['prefix']}_spectra -v\n")
+            f.write(f"{variables['python']} {shlex.quote(spectra_path + '/spectra.py')} analyze -i {variables['prefix']}_spectra.tsv -o {variables['prefix']}_spectra -v\n")
             spectra_string += f" --gff-file={variables['prefix']}_spectra_bins.gff --gff-tracks=bin-region"
         if args.ngaps:
-            f.write(f"{variables['python']} {spectra_path}/scripts/utils/n-counter.py -i {variables['assembled']} -o {variables['prefix']}_ngaps.gff -v\n")
+            f.write(f"{variables['python']} {shlex.quote(spectra_path + '/scripts/utils/n-counter.py')} -i {variables['assembled']} -o {variables['prefix']}_ngaps.gff -v\n")
             spectra_string += f" --ngaps={variables['prefix']}_ngaps.gff"
         f.write(spectra_string + "\n")
 
@@ -183,7 +257,7 @@ def main():
         f.write(f"###### Collate information into PDF report\n")
         if args.time:
             f.write(f"echo 'Starting PDF report generation at:'\ndate\n")
-        f.write(f"{variables['python']} {spectra_path}/scripts/utils/pdfReport.py -i {variables['prefix']} -o {variables['prefix']}_report.pdf -m {variables['mer_size']} -p {variables['prefix']}{' -b' if args.bins else ''}\n")
+        f.write(f"{variables['python']} {shlex.quote(spectra_path + '/scripts/utils/pdfReport.py')} -i {variables['prefix']} -o {variables['prefix']}_report.pdf -m {variables['mer_size']} -p {variables['prefix']}{' -b' if args.bins else ''}\n")
         if args.time:
             f.write(f"echo 'Ending PDF report generation at:'\ndate\n")
 

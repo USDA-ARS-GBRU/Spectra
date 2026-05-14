@@ -27,10 +27,15 @@ Run [preparePipeline.py](scripts/utils/preparePipeline.py)
   * Raw data k-mers with fewer than 100 hits (`--raw-min 100`) and assembled data k-mers with fewer than 2 hits (`--asm-min 2`) removed prior to analyses.
   * Intermediate K-mer files are removed during analyses.
   * *(OPTIONAL)* Sequence pattern shifts can additionally be plotted (`--bin-identify`). N-gaps on assembled 3-mer profiles can be highlighted (`--n-gaps`).
+  * *(OPTIONAL)* The k-mer counter can be switched between Jellyfish2 and Meryl (`-c meryl`). Meryl memory can be specified with `--meryl-memory`.
+  * *(OPTIONAL)* Input files can be hard-linked to the current directory to avoid path issues (`--hard-links`).
   * WARNING: When working with large raw data files, Jellyfish2 may require more memory than the resources provided. A flag (`--jellyfish-disk`) will require `jellyfish count` to use the `--disk` parameter.
 
-Example call:
+Example call (Jellyfish2):
 `python scripts/utils/preparePipeline.py -r raw1.fq.gz raw2.fq.gz -a scaffolded.fa -o spectra_script.sh -p spectra_run -t 20`
+
+Example call (Meryl):
+`python scripts/utils/preparePipeline.py -c meryl -r raw1.fq.gz raw2.fq.gz -a scaffolded.fa -o spectra_script.sh -p spectra_run -t 20 --meryl-memory 32G`
 
 This will prepare the Jellyfish2, Python, and R scripts necessary for comparing the raw sequence data in `raw1.fq.gz` and `raw2.fq.gz` to the scaffolded genome assembly `scaffolded.fa`. The bash script with commands will be named `spectra_script.sh`, and all files produced will have the prefix `spectra_run`. Jellyfish2 will have 20 computing threads for k-mer counting.
 
