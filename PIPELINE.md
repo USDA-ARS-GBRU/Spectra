@@ -7,8 +7,8 @@ To run this pipeline, you will need the following:
   Windows.
   * High-throughput computing access preferable, but local machines can run this entire pipeline. Storing and running
   k-mer analysis on large raw read files is ill-advised. All successive steps can be run easily.
-* [Jellyfish2](http://academic.oup.com/bioinformatics/article/27/6/764/234905)
 * [Conda](https://docs.conda.io/projects/conda/en/stable/user-guide/getting-started.html) or a comparable conda
+* [Jellyfish2](http://academic.oup.com/bioinformatics/article/27/6/764/234905) or [meryl](https://link.springer.com/article/10.1186/s13059-020-02134-9) if not using Conda
 packager
 * Raw HiFi or comparable long read data, formatted as FASTQ or FASTA. No quality-control is run on this read data,
 so the exact filtered data that was used in the assembly is preferred.
