@@ -5,13 +5,18 @@ import time
 from Bio import SeqIO
 import csv
 import logging
-from collections import Counter, defaultdict
+from collections import Counter
 import multiprocessing
 
 # Fast reverse complement using translation table
 RC_TRANS = str.maketrans("ACGTacgt", "TGCAtgca")
 def rc(sequence):
     return sequence.translate(RC_TRANS)[::-1]
+
+# Global variables for workers (shared via Copy-on-Write)
+GLOBAL_KMER_MAP = None
+GLOBAL_MER_SIZE = None
+GLOBAL_BIN_NAMES = None
 
 # Sliding window utility
 def window_tasks(sequence_record, width, spacing, sequence_name, offset=0):
@@ -30,22 +35,27 @@ def process_window(task):
     local_counts = Counter()
     for i in range(len(window_seq) - GLOBAL_MER_SIZE + 1):
         kmer = window_seq[i:i + GLOBAL_MER_SIZE]
-        if kmer in GLOBAL_KMER_MAP:
-            for bin_name in GLOBAL_KMER_MAP[kmer]:
-                local_counts[bin_name] += 1
+        bin_ids = GLOBAL_KMER_MAP.get(kmer)
+        if bin_ids is not None:
+            if isinstance(bin_ids, int):
+                local_counts[bin_ids] += 1
+            else:
+                for bin_id in bin_ids:
+                    local_counts[bin_id] += 1
 
     rows = []
-    for bin_name in GLOBAL_BINS:
-        rows.append([sequence_name, bin_name, start + 1, end, local_counts.get(bin_name, 0)])
+    for bin_id, bin_name in enumerate(GLOBAL_BIN_NAMES):
+        count = local_counts.get(bin_id, 0)
+        rows.append([sequence_name, bin_name, start + 1, end, count])
     return rows
 
-def init_worker(kmer_map, mer_size, bins):
+def init_worker(kmer_map, mer_size, bin_names):
     global GLOBAL_KMER_MAP
     global GLOBAL_MER_SIZE
-    global GLOBAL_BINS
+    global GLOBAL_BIN_NAMES
     GLOBAL_KMER_MAP = kmer_map
     GLOBAL_MER_SIZE = mer_size
-    GLOBAL_BINS = bins
+    GLOBAL_BIN_NAMES = bin_names
 
 def main():
     # CLI arguments
@@ -106,34 +116,74 @@ def main():
         if not (args.percentile_keep - 1 < b < 100 - args.percentile_keep):
             interest_bins.append(b)
 
-    # Map kmers to bins
-    logger.info("Loading kmers into bins...")
-    kmer_map = defaultdict(list)
+    bin_thresholds = []
     bin_names = []
-    try:
-        for b in interest_bins:
-            start_idx = int(b / 100 * table_length)
-            end_idx = int(min(100, b + step) / 100 * table_length)
-            bin_name = f"pct{b + step:03d}"
-            bin_names.append(bin_name)
+    for i, b in enumerate(interest_bins):
+        start_idx = int(b / 100 * table_length)
+        end_idx = int(min(100, b + step) / 100 * table_length)
+        bin_name = f"pct{b + step:03d}"
+        bin_names.append(bin_name)
+        bin_thresholds.append((start_idx, end_idx, i))
 
-            with open(args.query) as f:
-                f.readline() # skip header
-                for idx, line in enumerate(f):
-                    if idx < start_idx: continue
-                    if idx >= end_idx: break
-                    kmer = line.strip().split("\t")[0].upper()
-                    kmer_map[kmer].append(bin_name)
-                    if args.complement:
-                        kmer_map[rc(kmer)].append(bin_name)
+    bin_thresholds.sort()
+
+    # Map kmers to bins in a single pass
+    logger.info("Loading kmers into bins...")
+    kmer_map = {}
+
+    def add_to_map(k, b_id):
+        existing = kmer_map.get(k)
+        if existing is None:
+            kmer_map[k] = b_id
+        elif isinstance(existing, int):
+            if existing != b_id:
+                kmer_map[k] = [existing, b_id]
+        else:
+            if b_id not in existing:
+                existing.append(b_id)
+
+    try:
+        with open(args.query) as f:
+            f.readline() # skip header
+            curr_bin_idx = 0
+            for idx, line in enumerate(f):
+                # Advance to the correct bin threshold
+                while curr_bin_idx < len(bin_thresholds) and idx >= bin_thresholds[curr_bin_idx][1]:
+                    curr_bin_idx += 1
+
+                if curr_bin_idx < len(bin_thresholds):
+                    start, end, bin_id = bin_thresholds[curr_bin_idx]
+                    if start <= idx < end:
+                        kmer = line.strip().split("\t")[0].upper()
+                        add_to_map(kmer, bin_id)
+                        if args.complement:
+                            add_to_map(rc(kmer), bin_id)
     except Exception as e:
         logger.error(f"Error mapping kmers to bins: {e}")
         return
 
     logger.info(f"Loaded {len(kmer_map):,} unique kmers across {len(bin_names)} bins")
 
-    # Prepare for parallel processing
-    pool = multiprocessing.Pool(processes=args.threads, initializer=init_worker, initargs=(kmer_map, args.mer_size, bin_names))
+    # Prepare for parallel processing using global variables for Copy-on-Write sharing
+    global GLOBAL_KMER_MAP
+    global GLOBAL_MER_SIZE
+    global GLOBAL_BIN_NAMES
+    GLOBAL_KMER_MAP = kmer_map
+    GLOBAL_MER_SIZE = args.mer_size
+    GLOBAL_BIN_NAMES = bin_names
+
+    # Use 'fork' to share memory efficiently on Unix-like systems
+    try:
+        mp_context = multiprocessing.get_context('fork')
+    except ValueError:
+        # 'fork' not available (e.g. on Windows), fallback to default
+        mp_context = multiprocessing.get_context()
+        logger.warning("Multiprocessing 'fork' not available. Memory usage may be higher.")
+
+    if mp_context.get_start_method() == 'fork':
+        pool = mp_context.Pool(processes=args.threads)
+    else:
+        pool = mp_context.Pool(processes=args.threads, initializer=init_worker, initargs=(kmer_map, args.mer_size, bin_names))
 
     # Prepare output
     try:
