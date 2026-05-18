@@ -6,7 +6,7 @@ import re
 
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import inch
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, PageBreak, Table
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, PageBreak, Table, TableStyle
 from reportlab.lib.styles import getSampleStyleSheet
 
 ### Prepares a ReportLab Image object with restricted size.
@@ -31,6 +31,42 @@ def add_safe_image(story, path, width, height, styles, spacer=0.1):
 
     story.append(Paragraph(f"<b>ERROR:</b> Could not find file {os.path.basename(path)}.", styles["Normal"]))
     return False
+
+### Adds a title page with run information.
+def add_title_page(story, styles, logo_path, prefix, raw_files, assembly_file, counter, mer_size):
+    if logo_path and os.path.exists(logo_path):
+        logo = image_prep(logo_path, 4 * inch, 4 * inch)
+        if logo:
+            story.append(Spacer(1, 1 * inch))
+            story.append(logo)
+            story.append(Spacer(1, 0.5 * inch))
+
+    story.append(Paragraph(f"<font size=24><b>Spectra Analysis Report</b></font>", styles["Title"]))
+    story.append(Spacer(1, 0.5 * inch))
+    story.append(Paragraph(f"<font size=14><b>Project Prefix:</b> {prefix}</font>", styles["Normal"]))
+    story.append(Spacer(1, 0.2 * inch))
+
+    # Parameters table
+    data = [
+        [Paragraph("<b>Parameter</b>", styles["Normal"]), Paragraph("<b>Value</b>", styles["Normal"])],
+        ["K-mer size", str(mer_size)],
+        ["Counter", counter],
+        [Paragraph("Assembly file", styles["Normal"]), Paragraph(os.path.basename(assembly_file) if assembly_file else "N/A", styles["Normal"])]
+    ]
+
+    if raw_files:
+        for i, raw in enumerate(raw_files):
+            label = "Raw file(s)" if i == 0 else ""
+            data.append([label, Paragraph(os.path.basename(raw), styles["Normal"])])
+
+    table = Table(data, colWidths=[1.5 * inch, 4.5 * inch])
+    table.setStyle([
+        ('GRID', (0, 0), (-1, -1), 0.5, 'grey'),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('PADDING', (0, 0), (-1, -1), 6)
+    ])
+    story.append(table)
+    story.append(PageBreak())
 
 ### Adds a row of images using a Table.
 def add_image_row(story, paths, widths, heights, styles):
@@ -70,7 +106,10 @@ def get_sequence_names(image_dir, prefix):
 ### Adds the K-mer distribution plots section.
 def add_kmer_distribution_section(story, image_dir, prefix, mer, styles, percentile):
     story.append(Paragraph(
-        f"<b>K={mer} distributions:</b> Kmer prevalence (left) in raw data [x-axis, log-scale] against prevalence in assembled data [y-axis, log-scale]. Kmer prevalence (right) when filtered for the top and bottom {percentile}% of kmers by shift in abundance between datasets.",
+        f"<b>K={mer} distributions:</b> K-mer prevalence (left) in raw data [x-axis, log-scale] against prevalence in assembled data [y-axis, log-scale]. "
+        f"K-mer prevalence (right) when filtered for the top and bottom {percentile}% of k-mers by shift in abundance between datasets. "
+        f"The scatter plot provides a global overview of how k-mer frequencies in the assembly match the raw sequencing reads. "
+        f"Ideally, k-mers should cluster along the diagonal, with peaks representing the expected sequencing coverage.",
         styles["Normal"]))
 
     paths = [
@@ -81,7 +120,10 @@ def add_kmer_distribution_section(story, image_dir, prefix, mer, styles, percent
 
     story.append(Spacer(1, 0.1 * inch))
     story.append(Paragraph(
-        f"<b>K={mer} abundance shift:</b> log-fold change in kmer representation between raw and assembled data. Peaks in change should roughly corroborate the sequencing coverage of the genome.",
+        f"<b>K={mer} abundance shift:</b> log-fold change in k-mer representation between raw and assembled data. "
+        f"Peaks in change should roughly corroborate the sequencing coverage of the genome. "
+        f"Positive shifts indicate k-mers over-represented in the assembly, while negative shifts indicate k-mers that are more "
+        f"abundant in the raw data than in the final assembly (potentially collapsed or missing regions).",
         styles["Normal"]))
 
     density_path = os.path.join(image_dir, f"{prefix}_kmer_comp_k{mer}_density.png")
@@ -91,7 +133,10 @@ def add_kmer_distribution_section(story, image_dir, prefix, mer, styles, percent
 def add_abundance_density_section(story, image_dir, prefix, mer, styles):
     story.append(PageBreak())
     story.append(Paragraph(
-        f"<b>K={mer} abundance density:</b> Kernal density estimation (left) and violin plots (right) of kmers in raw [blue] and assembled [orange] data. Graphical estimations might not be smoothed depending on the data's composition.",
+        f"<b>K={mer} abundance density:</b> Kernel density estimation (left) and violin plots (right) of k-mers in raw [blue] and assembled [orange] data. "
+        f"Graphical estimations might not be smoothed depending on the data's composition. "
+        f"These plots compare the overall distribution of k-mer multiplicities. A well-assembled genome should "
+        f"closely mirror the distribution of the raw data, particularly at the primary coverage peak.",
         styles["Normal"]))
 
     paths = [
@@ -102,14 +147,17 @@ def add_abundance_density_section(story, image_dir, prefix, mer, styles):
 
     story.append(Spacer(1, 0.1 * inch))
     story.append(Paragraph(
-        f"<b>K{mer} empirical cumulative distribution:</b> Measure of how many kmers (and their cumulative probability) are observed at each sequential log-fold change in frequency.",
+        f"<b>K={mer} empirical cumulative distribution (ECDF):</b> Measure of how many k-mers (and their cumulative probability) "
+        f"are observed at each sequential log-fold change in frequency. "
+        f"The ECDF helps identify the proportion of k-mers that fall within certain shift ranges, "
+        f"providing a quantitative measure of assembly completeness and consistency.",
         styles["Normal"]))
 
     ecdf_path = os.path.join(image_dir, f"{prefix}_kmer_comp_k{mer}_ecdf.png")
     add_safe_image(story, ecdf_path, 6 * inch, 3 * inch, styles)
 
 ### Adds the sequence-specific breakdown pages.
-def add_sequence_breakdown_section(story, image_dir, prefix, mer, sequence_names, max_output, ngaps, bins, styles):
+def add_sequence_breakdown_section(story, image_dir, prefix, mer, sequence_names, max_output, ngaps, bins, styles, spectra_dir=None):
     story.append(PageBreak())
 
     paragraph_text = (f"<b>Sequence-specific spectra breakdowns:</b> the following pages are a breakdown of spectra (K=3 mer distribution) "
@@ -131,6 +179,21 @@ def add_sequence_breakdown_section(story, image_dir, prefix, mer, sequence_names
 
     circular_path = os.path.join(image_dir, f"{prefix}_circular.png")
     add_safe_image(story, circular_path, 6.5 * inch, 6.5 * inch, styles, spacer=0)
+
+    # Add legend below circular plot
+    if spectra_dir:
+        legend_path = os.path.join(spectra_dir, "includes", "Spectra-legend.png")
+        if legend_path and os.path.exists(legend_path):
+            story.append(Spacer(1, 0.2 * inch))
+            legend_img = image_prep(legend_path, 5 * inch, 5 * inch)
+            if legend_img:
+                story.append(legend_img)
+
+            legend_desc = ("<b>Spectra Legend:</b> The color keys above represent the 64 possible 3-mers (trinucleotides). "
+                           "In the following sequence plots, these colors indicate the local composition and shifts in 3-mer distributions "
+                           "across the assembly. Each color corresponds to a specific 3-mer as shown in the grid.")
+            story.append(Spacer(1, 0.1 * inch))
+            story.append(Paragraph(legend_desc, styles["Normal"]))
 
     for sequence in sequence_names[:max_output]:
         story.append(PageBreak())
@@ -166,16 +229,21 @@ def add_sequence_breakdown_section(story, image_dir, prefix, mer, sequence_names
         add_safe_image(story, low_path, 6.5 * inch, 4 * inch, styles, spacer=0)
 
 ### Main function to construct the PDF report.
-def make_report(output_pdf, image_dir, mer, prefix, bins=False, ngaps=False, max_output=50, percentile=5):
+def make_report(output_pdf, image_dir, mer, prefix, bins=False, ngaps=False, max_output=50, percentile=5,
+                raw_files=None, assembly_file=None, counter=None, spectra_dir=None):
     doc = SimpleDocTemplate(output_pdf, pagesize=letter)
     doc.title = f'Spectra output report: {prefix}'
     story = []
     styles = getSampleStyleSheet()
 
+    # Title Page
+    logo_path = os.path.join(spectra_dir, "includes", "Spectra-Logo.png") if spectra_dir else None
+    add_title_page(story, styles, logo_path, prefix, raw_files, assembly_file, counter, mer)
+
     # Introduction
     intro_text = ("<b>Spectra pipeline output report:</b> The following figures were auto-generated by the Spectra pipeline. "
-                  "These figures show the relationship between kmers in raw sequence data and in a genome assembly. "
-                  "These figures were generated with a random sampling of kmers.")
+                  "These figures show the relationship between k-mers in raw sequence data and in a genome assembly. "
+                  "These figures were generated with a random sampling of k-mers.")
     story.append(Paragraph(intro_text, styles["Normal"]))
     story.append(Spacer(1, 0.1 * inch))
 
@@ -184,7 +252,7 @@ def make_report(output_pdf, image_dir, mer, prefix, bins=False, ngaps=False, max
     add_abundance_density_section(story, image_dir, prefix, mer, styles)
 
     sequence_names = get_sequence_names(image_dir, prefix)
-    add_sequence_breakdown_section(story, image_dir, prefix, mer, sequence_names, max_output, ngaps, bins, styles)
+    add_sequence_breakdown_section(story, image_dir, prefix, mer, sequence_names, max_output, ngaps, bins, styles, spectra_dir=spectra_dir)
 
     # Build PDF
     try:
@@ -203,6 +271,10 @@ def main():
     parser.add_argument('-p', '--prefix', dest='prefix', type=str, required=True)
     parser.add_argument('-e', '--percentile', dest='percentile', type=int, default=5)
     parser.add_argument('-x', '--max_output', dest='to_output', type=int, help='Contigs to include individual plots for, taken alphabetically.', default=50)
+    parser.add_argument('-r', '--raw', dest='raw', nargs='+', help='Input raw fasta/fastq read file(s).', default=None)
+    parser.add_argument('-a', '--assembled', dest='assembled', help='Input fasta assembly file.', default=None)
+    parser.add_argument('-c', '--counter', dest='counter', help='K-mer counter used.', default=None)
+    parser.add_argument('-s', '--spectra-dir', dest='spectra_dir', help='Path to Spectra directory for logo and legend.', default=None)
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
@@ -215,7 +287,11 @@ def main():
         bins=args.bins,
         ngaps=args.ngaps,
         max_output=args.to_output,
-        percentile=args.percentile
+        percentile=args.percentile,
+        raw_files=args.raw,
+        assembly_file=args.assembled,
+        counter=args.counter,
+        spectra_dir=args.spectra_dir
     )
 
 if __name__ == "__main__":
