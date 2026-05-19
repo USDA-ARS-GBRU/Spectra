@@ -94,7 +94,7 @@ def main():
         f.write("#####\n\n")
 
         # If variables required, define variables from argument parser.
-        variable_names = ["output", "prefix", "threads", "mer_size", "minimum_size", "jf_bloom", "jf_path", "python", "rscript", "sample_size", "chunk_size", "percentile", "raw_min", "asm_min", "mq_window", "spectra_window", "assembled", "meryl_path", "meryl_memory"]
+        variable_names = ["output", "prefix", "threads", "mer_size", "minimum_size", "jf_bloom", "jf_path", "python", "rscript", "sample_size", "chunk_size", "percentile", "raw_min", "asm_min", "mq_window", "spectra_window", "assembled", "meryl_path", "meryl_memory", "counter"]
 
         if args.variable:
             variables = {name: f'"${{{name}}}"' for name in variable_names}
@@ -257,7 +257,14 @@ def main():
         f.write(f"###### Collate information into PDF report\n")
         if args.time:
             f.write(f"echo 'Starting PDF report generation at:'\ndate\n")
-        f.write(f"{variables['python']} {shlex.quote(spectra_path + '/scripts/utils/pdfReport.py')} -i {variables['prefix']} -o {variables['prefix']}_report.pdf -m {variables['mer_size']} -p {variables['prefix']}{' -b' if args.bins else ''}\n")
+
+        raw_files_str = ' '.join([i[0] for i in variables['raw']])
+        f.write(f"{variables['python']} {shlex.quote(spectra_path + '/scripts/utils/pdfReport.py')} "
+                f"-i {variables['prefix']} -o {variables['prefix']}_report.pdf -m {variables['mer_size']} "
+                f"-p {variables['prefix']}{' -b' if args.bins else ''} "
+                f"-r {raw_files_str} -a {variables['assembled']} -c {variables['counter']} "
+                f"-s {shlex.quote(spectra_path)}\n")
+
         if args.time:
             f.write(f"echo 'Ending PDF report generation at:'\ndate\n")
 
