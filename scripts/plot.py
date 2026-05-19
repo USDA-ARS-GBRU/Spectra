@@ -81,7 +81,8 @@ def setup_axes(ax, x_min, x_max, show_axes=True):
 def plot_spectra(df, output_path, sequence, x_min, x_max, show_axes=True, frequencies=False):
     queries = [c for c in df.columns if len(c) == 3 and all(b in 'ACGT' for b in c)]
     ordered_queries, color_map = get_triplet_colors(queries)
-
+    # Queries sorted to match the expected color gradient
+    ordered_queries.sort(reverse=True)
     df = df.sort_values('Start')
 
     if not frequencies:
@@ -100,7 +101,8 @@ def plot_spectra(df, output_path, sequence, x_min, x_max, show_axes=True, freque
 
     y_prev = np.zeros(len(df))
     for i, q in enumerate(ordered_queries):
-        ax.fill_between(x, y_prev, y_stack[:, i], color=color_map[q], step='mid', linewidth=0)
+        # Looking to transition away from cum-sum plots for this aspect. Matplotlib in python ultimately is the answer for deprecating R, but the linewidth hackaround is not healthy
+        ax.fill_between(x, y_prev, y_stack[:, i], color=color_map[q], step='mid', linewidth=.15, edgecolor=color_map[q])
         y_prev = y_stack[:, i]
 
     setup_axes(ax, x_min, x_max, show_axes)
@@ -135,9 +137,11 @@ def plot_mass(df, output_prefix, sequence, x_min, x_max, show_axes=True, y_max=N
                             bottom=PLOT_CONFIG['bottom_margin'], top=PLOT_CONFIG['top_margin'])
 
         y_prev = np.zeros(len(pivot_df))
-        cmap = plt.get_cmap('viridis', len(bin_group))
+        # Hot and cold color schemes added.
+        cmap_hot = plt.get_cmap('YlOrRd', len(bin_group))
+        cmap_cold = plt.get_cmap('GnBu', len(bin_group))
         for i in range(len(bin_group)):
-            ax.fill_between(x, y_prev, y_stack[:, i], color=cmap(i), step='mid', linewidth=0)
+            ax.fill_between(x, y_prev, y_stack[:, i], color=cmap_hot(i) if suffix=="high" else cmap_cold(i), step='mid', linewidth=0)
             y_prev = y_stack[:, i]
 
         setup_axes(ax, x_min, x_max, show_axes)
