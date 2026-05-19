@@ -48,6 +48,7 @@ def main():
     parser.add_argument('--asm-min', dest='asm_min', type=int, default=2, help='Jellyfish2 assembly kmer minimum count to retain [default 2]')
     parser.add_argument('--mq-window', dest='mq_window', type=int, default=200000, help='Window and spacing width for kmer mass-query.py localization [default 200,000 bp]')
     parser.add_argument('--spectra-window', dest='spectra_window', type=int, default=10000, help='Window and spacing width for spectra.py K=3 localization [default 10,000 bp]')
+    parser.add_argument('--max-output', dest='max_output', type=int, default=50, help='Maximum number of contigs to include in final report to limit filesize [default 50]')
     parser.add_argument('--keep', dest='keep', action='store_false', help='Clean workspace as files are processed. Jellyfish kmer counts are very large. By default, these files are removed after processing.', default=True)
     parser.add_argument('--variable-paths', dest='variable', action='store_true', help='Code will use variables for naming of analysis files. Default is hard paths.', default=False)
     args = parser.parse_args()
@@ -94,7 +95,7 @@ def main():
         f.write("#####\n\n")
 
         # If variables required, define variables from argument parser.
-        variable_names = ["output", "prefix", "threads", "mer_size", "minimum_size", "jf_bloom", "jf_path", "python", "rscript", "sample_size", "chunk_size", "percentile", "raw_min", "asm_min", "mq_window", "spectra_window", "assembled", "meryl_path", "meryl_memory", "counter"]
+        variable_names = ["output", "prefix", "threads", "mer_size", "minimum_size", "jf_bloom", "jf_path", "python", "rscript", "sample_size", "chunk_size", "percentile", "raw_min", "asm_min", "mq_window", "spectra_window", "assembled", "meryl_path", "meryl_memory", "counter", "max_output"]
 
         if args.variable:
             variables = {name: f'"${{{name}}}"' for name in variable_names}
@@ -261,7 +262,7 @@ def main():
         raw_files_str = ' '.join([i[0] for i in variables['raw']])
         f.write(f"{variables['python']} {shlex.quote(spectra_path + '/scripts/utils/pdfReport.py')} "
                 f"-i {variables['prefix']} -o {variables['prefix']}_report.pdf -m {variables['mer_size']} "
-                f"-p {variables['prefix']}{' -b' if args.bins else ''} "
+                f"-p {variables['prefix']} --max-output {variables['max_output']}{' -b' if args.bins else ''} "
                 f"-r {raw_files_str} -a {variables['assembled']} -c {variables['counter']} "
                 f"-s {shlex.quote(spectra_path)}\n")
 
