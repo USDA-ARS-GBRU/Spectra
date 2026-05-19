@@ -63,12 +63,18 @@ def main():
     parser_transform.add_argument('-v', '--verbose', dest='verbose', action='store_true', help='verbose mode', default=False)
 
     # Plot
-    parser_plot = subparsers.add_parser('plot', description='Plot interactive spectra profiles')
-    parser_plot.add_argument('-i', '--input', dest='input_tsv', type=str, help='Input spectra tsv', required=True)
-    parser_plot.add_argument('-o', '--output', dest='output', type=str, help='Output spectra plot (HTML)', default='spectra_plot.html')
+    parser_plot = subparsers.add_parser('plot', description='Plot spectra profiles')
+    parser_plot.add_argument('-i', '--input', dest='input_tsv', type=str, help='Input spectra or mass-query tsv', required=True)
+    parser_plot.add_argument('-o', '--output', dest='output', type=str, help='Output prefix or filename', required=True)
     parser_plot.add_argument('-z', '--zoom', dest='zoom_width', type=str, help='Plot only a portion of the windows from between X,Y')
     parser_plot.add_argument('-s', '--sequence', dest='sequence', type=str, help='Plot only sequences matching Name1,Name2,Name3')
     parser_plot.add_argument('-v', '--verbose', dest='verbose', action='store_true', help='Verbose mode', default=False)
+    parser_plot.add_argument('-a', '--axes', dest='axes', action='store_true', help='Display axes', default=False)
+    parser_plot.add_argument('-f', '--freq', dest='frequencies', action='store_true', help='Data is frequencies', default=False)
+    parser_plot.add_argument('--gff-file', dest='gff_file', type=str, help='GFF file for annotations')
+    parser_plot.add_argument('--gff-tracks', dest='gff_tracks', type=str, help='GFF tracks to include')
+    parser_plot.add_argument('--ngaps', dest='ngaps', type=str, help='GFF of N-gap coordinates')
+    parser_plot.add_argument('--html', dest='html', action='store_true', help='Generate interactive HTML plot (Plotly)', default=False)
 
     # Analyze
     parser_analyze = subparsers.add_parser('analyze', description='Analyze spectra profiles to detect breakpoints')
