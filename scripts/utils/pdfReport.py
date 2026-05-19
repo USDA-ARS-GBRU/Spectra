@@ -157,7 +157,7 @@ def add_abundance_density_section(story, image_dir, prefix, mer, styles):
     add_safe_image(story, ecdf_path, 6 * inch, 3 * inch, styles)
 
 ### Adds the sequence-specific breakdown pages.
-def add_sequence_breakdown_section(story, image_dir, prefix, mer, sequence_names, max_output, ngaps, bins, styles, spectra_dir=None):
+def add_sequence_breakdown_section(story, image_dir, prefix, mer, sequence_names, max_output, ngaps, bins, styles, spectra_dir=None, canonical=False):
     story.append(PageBreak())
 
     paragraph_text = (f"<b>Sequence-specific spectra breakdowns:</b> the following pages are a breakdown of spectra (K=3 mer distribution) "
@@ -198,39 +198,51 @@ def add_sequence_breakdown_section(story, image_dir, prefix, mer, sequence_names
     for sequence in sequence_names[:max_output]:
         story.append(PageBreak())
         story.append(Paragraph(f"<b>Sequence {sequence}:</b>", styles["Normal"]))
-        story.append(Spacer(1, 0.3 * inch))
+        story.append(Spacer(1, 0.2 * inch))
 
-        # High abundance plot
+        # 1. High abundance plot
         high_path = os.path.join(image_dir, f"{prefix}_mass_{sequence}_high.png")
         add_safe_image(story, high_path, 6.5 * inch, 4 * inch, styles, spacer=0)
 
-        # Spectra plot
+        # 2. Non-canonical spectra plot
         story.append(Spacer(1, 0.1 * inch))
         spectra_path = os.path.join(image_dir, f"{prefix}_spectra_{sequence}.png")
         add_safe_image(story, spectra_path, 6.5 * inch, 4 * inch, styles, spacer=0)
 
-        # GFF/Bins plot
+        # 3. Bins for non-canonical spectra
         if bins:
-            story.append(Spacer(1, 0.1 * inch))
             gff_path = os.path.join(image_dir, f"{prefix}_spectra_gff_{sequence}.png")
             if os.path.exists(gff_path):
-                # Using a table to match the original padding logic if needed,
-                # but simplified for now.
-                img = image_prep(gff_path, 6.6 * inch, 4 * inch)
+                img = image_prep(gff_path, 6.5 * inch, 4 * inch)
                 if img:
-                    row = Table([[Spacer(0.003 * inch, 0.01 * inch), img]])
-                    story.append(row)
+                    story.append(img)
             else:
                 story.append(Paragraph(f"<b>ERROR:</b> Could not find file {os.path.basename(gff_path)}.", styles["Normal"]))
 
-        # Low abundance plot
+        # 4. Canonical spectra plot (if requested)
+        if canonical:
+            story.append(Spacer(1, 0.1 * inch))
+            canon_path = os.path.join(image_dir, f"{prefix}_spectra_canonical_{sequence}.png")
+            add_safe_image(story, canon_path, 6.5 * inch, 4 * inch, styles, spacer=0)
+
+            # 5. Bins for canonical spectra
+            if bins:
+                canon_gff_path = os.path.join(image_dir, f"{prefix}_spectra_canonical_gff_{sequence}.png")
+                if os.path.exists(canon_gff_path):
+                    img = image_prep(canon_gff_path, 6.5 * inch, 4 * inch)
+                    if img:
+                        story.append(img)
+                else:
+                    story.append(Paragraph(f"<b>ERROR:</b> Could not find file {os.path.basename(canon_gff_path)}.", styles["Normal"]))
+
+        # 6. Low abundance plot
         story.append(Spacer(1, 0.1 * inch))
         low_path = os.path.join(image_dir, f"{prefix}_mass_{sequence}_low.png")
         add_safe_image(story, low_path, 6.5 * inch, 4 * inch, styles, spacer=0)
 
 ### Main function to construct the PDF report.
 def make_report(output_pdf, image_dir, mer, prefix, bins=False, ngaps=False, max_output=50, percentile=5,
-                raw_files=None, assembly_file=None, counter=None, spectra_dir=None):
+                raw_files=None, assembly_file=None, counter=None, spectra_dir=None, canonical=False):
     doc = SimpleDocTemplate(output_pdf, pagesize=letter)
     doc.title = f'Spectra output report: {prefix}'
     story = []
@@ -252,7 +264,7 @@ def make_report(output_pdf, image_dir, mer, prefix, bins=False, ngaps=False, max
     add_abundance_density_section(story, image_dir, prefix, mer, styles)
 
     sequence_names = get_sequence_names(image_dir, prefix)
-    add_sequence_breakdown_section(story, image_dir, prefix, mer, sequence_names, max_output, ngaps, bins, styles, spectra_dir=spectra_dir)
+    add_sequence_breakdown_section(story, image_dir, prefix, mer, sequence_names, max_output, ngaps, bins, styles, spectra_dir=spectra_dir, canonical=canonical)
 
     # Build PDF
     try:
@@ -268,6 +280,7 @@ def main():
     parser.add_argument('-m', '--mer-size', dest='mer_size', type=int, help='kmer size ran.', default=20)
     parser.add_argument('-n', '--n-gaps', dest='ngaps', action='store_true', help='Label gaps in the assembly in the final report', default=False)
     parser.add_argument('-b', '--bin-identify', dest='bins', action='store_true', help='Label bin regions in the genome assembly', default=False)
+    parser.add_argument('--canonical', dest='canonical', action='store_true', help='Canonical spectra was generated', default=False)
     parser.add_argument('-p', '--prefix', dest='prefix', type=str, required=True)
     parser.add_argument('-e', '--percentile', dest='percentile', type=int, default=5)
     parser.add_argument('-x', '--max_output', dest='to_output', type=int, help='Contigs to include individual plots for, taken alphabetically.', default=50)
@@ -291,7 +304,8 @@ def main():
         raw_files=args.raw,
         assembly_file=args.assembled,
         counter=args.counter,
-        spectra_dir=args.spectra_dir
+        spectra_dir=args.spectra_dir,
+        canonical=args.canonical
     )
 
 if __name__ == "__main__":
