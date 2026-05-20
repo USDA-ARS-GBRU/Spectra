@@ -67,7 +67,6 @@ def setup_axes(ax, x_min, x_max, show_axes=True):
         ax.set_xticklabels([])
         ax.set_xlabel('')
         ax.spines['bottom'].set_visible(False)
-        ax.xaxis.set_visible(False)
     else:
         ax.tick_params(axis='both', which='major', labelsize=7)
         ax.xaxis.set_major_formatter(ticker.ScalarFormatter(useMathText=True))
@@ -78,7 +77,7 @@ def setup_axes(ax, x_min, x_max, show_axes=True):
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
 
-def plot_spectra(df, output_path, sequence, x_min, x_max, show_axes=True, frequencies=False):
+def plot_spectra(df, output_path, sequence, x_min, x_max, show_axes=True, frequencies=False, ngaps_path=None):
     queries = [c for c in df.columns if len(c) == 3 and all(b in 'ACGT' for b in c)]
     ordered_queries, color_map = get_triplet_colors(queries)
     # Queries sorted to match the expected color gradient
@@ -104,6 +103,16 @@ def plot_spectra(df, output_path, sequence, x_min, x_max, show_axes=True, freque
         # Looking to transition away from cum-sum plots for this aspect. Matplotlib in python ultimately is the answer for deprecating R, but the linewidth hackaround is not healthy
         ax.fill_between(x, y_prev, y_stack[:, i], color=color_map[q], step='mid', linewidth=.15, edgecolor=color_map[q])
         y_prev = y_stack[:, i]
+
+    if ngaps_path and os.path.exists(ngaps_path):
+        try:
+            ngaps = pd.read_csv(ngaps_path, sep='\t', comment='#', header=None,
+                                names=['seqid', 'source', 'type', 'start', 'end', 'score', 'strand', 'phase', 'attributes'])
+            ngaps = ngaps[ngaps['seqid'] == sequence]
+            for _, row in ngaps.iterrows():
+                ax.axvspan(row['start'], row['end'], color='black', alpha=0.5, zorder=10)
+        except Exception as e:
+            logger.error(f"Error reading ngaps GFF {ngaps_path}: {e}")
 
     setup_axes(ax, x_min, x_max, show_axes)
     ax.set_ylim(0, 1.0)
@@ -170,22 +179,27 @@ def plot_gff(gff_path, output_path, sequence, x_min, x_max, tracks=None):
         gff = gff[gff['type'].isin(tracks)]
 
     unique_types = sorted(gff['type'].unique())
-    if len(unique_types) == 0: return
+    num_types = len(unique_types)
+    if num_types == 0: return
 
-    fig, ax = plt.subplots(figsize=(PLOT_CONFIG['width'], PLOT_CONFIG['height_gff'] * len(unique_types)))
+    fig, axes = plt.subplots(nrows=num_types, figsize=(PLOT_CONFIG['width'], PLOT_CONFIG['height_gff'] * num_types), squeeze=False)
     plt.subplots_adjust(left=PLOT_CONFIG['left_margin'], right=PLOT_CONFIG['right_margin'],
-                        bottom=0.1, top=0.9)
+                        bottom=0.1, top=0.9, hspace=0.1)
 
     for i, t in enumerate(unique_types):
+        ax = axes[i, 0]
         type_gff = gff[gff['type'] == t]
         for _, row in type_gff.iterrows():
-            rect = Rectangle((row['start'], i - 0.3), row['end'] - row['start'], 0.6, color='black', linewidth=0)
+            color = 'blue' if row['strand'] == '+' else 'red' if row['strand'] == '-' else 'black'
+            rect = Rectangle((row['start'], 0.1), row['end'] - row['start'], 0.8, color=color, linewidth=0)
             ax.add_patch(rect)
-        ax.text(x_min, i, t, va='center', ha='right', fontsize=7, transform=ax.get_yaxis_transform())
 
-    setup_axes(ax, x_min, x_max, show_axes=False)
-    ax.set_ylim(-0.5, len(unique_types) - 0.5)
-    ax.set_yticks([])
+        ax.set_ylabel(t, rotation=0, ha='right', va='center', fontsize=7)
+        setup_axes(ax, x_min, x_max, show_axes=(i == num_types - 1))
+        ax.set_ylim(0, 1)
+        ax.set_yticks([])
+        ax.spines['left'].set_visible(False)
+
     plt.savefig(output_path, dpi=PLOT_CONFIG['dpi'], transparent=True)
     plt.close()
 
@@ -256,7 +270,7 @@ def execute(args):
             plot_mass(seq_df, args.output, seq, x_min, x_max, show_axes=args.axes)
         else:
             out_path = f"{args.output}_{seq}.png"
-            plot_spectra(seq_df, out_path, seq, x_min, x_max, show_axes=args.axes, frequencies=args.frequencies)
+            plot_spectra(seq_df, out_path, seq, x_min, x_max, show_axes=args.axes, frequencies=args.frequencies, ngaps_path=args.ngaps if hasattr(args, 'ngaps') else None)
 
             if hasattr(args, 'gff_file') and args.gff_file:
                 gff_tracks = args.gff_tracks.split(',') if args.gff_tracks else None

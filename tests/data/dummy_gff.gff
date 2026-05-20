@@ -1,0 +1,3 @@
+seq1	source	gene	5000	7000	.	+	.	ID=gene1
+seq1	source	gene	15000	17000	.	-	.	ID=gene2
+seq1	source	repeat	20000	22000	.	+	.	ID=rep1
