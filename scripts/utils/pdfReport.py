@@ -93,7 +93,7 @@ def add_image_row(story, paths, widths, heights, styles):
 def get_sequence_names(image_dir, prefix):
 
     # Pattern: {prefix}_spectra_{sequence}.png, excluding spectra_gff
-    pattern = re.compile(rf"^{re.escape(prefix)}_standard_spectra_(.+)\.png$")
+    pattern = re.compile(rf"^{re.escape(prefix)}_spectra_standard_(.+)\.png$")
     sequences = []
     for f in os.listdir(image_dir):
         match = pattern.match(f)
