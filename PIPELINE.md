@@ -5,7 +5,7 @@ The Spectra pipeline is designed to compare the genetic composition of raw seque
 
 ### Key Concepts
 * **K-mer**: A short sequence of DNA of length *k*. For example, a 20-mer is a sequence of 20 nucleotides.
-* **3-mer (Trinucleotide)**: A k-mer of length 3 (e.g., AAA, ACG). Spectra uses 3-mer distributions to create a "fingerprint" of different genomic regions.
+* **3-mer (Tri-nucleotide)**: A k-mer of length 3 (e.g., AAA, ACG). Spectra uses 3-mer distributions to create a "fingerprint" of different genomic regions.
 * **Abundance/Count**: The number of times a specific k-mer appears in a dataset.
 * **Log-fold Change**: A mathematical way to compare abundance. A high positive value means a k-mer is much more common in the assembly than the raw reads, while a negative value means it is under-represented in the assembly.
 
@@ -94,7 +94,7 @@ This plot shows the cumulative probability of log-fold changes. It's a technical
 For each major sequence (contig/chromosome) in your assembly, the report provides:
 *   **High-Abundance K-mers (Top Plot)**: Localizes k-mers that are much more common in the assembly than expected (potential collapses or repetitive elements).
 *   **Spectra (Middle Plot)**: Visualizes the 3-mer "fingerprint" along the sequence. Different colors represent different 3-mers. Sudden shifts in the color patterns can indicate boundaries between different types of genetic material (e.g., transitions into centromeres or telomeres).
-*   **Low-Abundance K-mers (Bottom Plot)**: Localizes k-mers that are missing or under-represented in the assembly compared to the raw reads (potential misassemblies or missing sequence).
+*   **Low-Abundance K-mers (Bottom Plot)**: Localizes k-mers that are missing or under-represented in the assembly compared to the raw reads (potential mis-assemblies or missing sequence).
 
 ## Optional Outputs
 *   `{prefix}_spectra_bins.gff`: If `--bin-identify` is used, this file contains the coordinates of regions where the 3-mer composition shifts significantly.

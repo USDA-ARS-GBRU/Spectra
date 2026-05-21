@@ -24,7 +24,7 @@ def main():
     parser.add_argument('-a', '--assembled', dest='assembled', required=True, help='Input fasta/bgzipped fasta sequence assembly file')
     parser.add_argument('-o', '--output-script', dest='output', default='spectra-pipeline.sh', help='Output bash file')
     parser.add_argument('-p', '--output-prefix', dest='prefix', default='spectra_pipeline', help='Output files prefix. A directory will be created with this name for storing images')
-    parser.add_argument('-t', '--threads', dest='threads', type=int, help='Processing threads for Jellyfish kmer counting', required=True)
+    parser.add_argument('-t', '--threads', dest='threads', type=int, help='Processing threads for multi-threading routines', required=True)
     parser.add_argument('-k', '--kmer-size', dest='mer_size', type=int, help='kmer size in query [default 20]', default=20)
     parser.add_argument('-m', '--minimum-sequence-size', dest='minimum_size', type=int, help='Minimum sequence size to include in reports [100,000 bp]', default=100000)
     parser.add_argument('-c', '--counter', dest='counter', choices=['jellyfish', 'meryl'], default='jellyfish', help='K-mer counter to use [default jellyfish]')

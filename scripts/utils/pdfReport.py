@@ -93,7 +93,7 @@ def add_image_row(story, paths, widths, heights, styles):
 def get_sequence_names(image_dir, prefix):
 
     # Pattern: {prefix}_spectra_{sequence}.png, excluding spectra_gff
-    pattern = re.compile(rf"^{re.escape(prefix)}_spectra_(.+)\.png$")
+    pattern = re.compile(rf"^{re.escape(prefix)}_standard_spectra_(.+)\.png$")
     sequences = []
     for f in os.listdir(image_dir):
         match = pattern.match(f)
@@ -191,7 +191,7 @@ def add_sequence_breakdown_section(story, image_dir, prefix, mer, sequence_names
             if legend_img:
                 story.append(legend_img)
 
-            legend_desc = ("<b>Spectra Legend:</b> The color keys above represent the 64 possible 3-mers (trinucleotides). "
+            legend_desc = ("<b>Spectra Legend:</b> The color keys above represent the 64 possible 3-mers (tri-nucleotides). "
                            "In the following sequence plots, these colors indicate the local composition and shifts in 3-mer distributions "
                            "across the assembly. Each color corresponds to a specific 3-mer as shown in the grid.")
             story.append(Spacer(1, 0.1 * inch))
