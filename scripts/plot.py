@@ -265,19 +265,14 @@ def execute(args):
         if seq_df.empty: continue
         x_min = seq_df['Start'].min()
         x_max = seq_df['End'].max()
-
         if is_mass:
             plot_mass(seq_df, args.output, seq, x_min, x_max, show_axes=args.axes)
         else:
             out_path = f"{args.output}_{seq}.png"
             plot_spectra(seq_df, out_path, seq, x_min, x_max, show_axes=args.axes, frequencies=args.frequencies, ngaps_path=args.ngaps if hasattr(args, 'ngaps') else None)
-
             if hasattr(args, 'gff_file') and args.gff_file:
                 gff_tracks = args.gff_tracks.split(',') if args.gff_tracks else None
                 plot_gff(args.gff_file, f"{args.output}_gff_{seq}.png", seq, x_min, x_max, tracks=gff_tracks)
-
-            if hasattr(args, 'ngaps') and args.ngaps:
-                 plot_gff(args.ngaps, f"{args.output}_ngaps_{seq}.png", seq, x_min, x_max)
 
 if __name__ == "__main__":
     import argparse
