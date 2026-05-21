@@ -46,9 +46,9 @@ def main():
     parser.add_argument('--time', dest='time', action='store_true', default=False, help='Write timestamps for program progress [default False]')
     parser.add_argument('--sample-size', dest='sample_size', type=int, default=5000000, help='Number of randomly sampled k-mers to show in comparison plots.[default 5,000,000]')
     parser.add_argument('--chunk-size', dest='chunk_size', type=int, default=5000000, help='Maximum size of sequences to process on. Larger sequences will be segmented before processing.[default 5,000,000 bp]')
-    parser.add_argument('--percentile', dest='percentile', type=int, default=5, help='Percentiles of highest/lowest to plot.[default 5]')
-    parser.add_argument('--low', dest='low', type=float, default=None, help='Bottom N percent of kmers to keep')
-    parser.add_argument('--high', dest='high', type=float, default=None, help='Top N percent of kmers to keep')
+    parser.add_argument('--percentile', dest='percentile', type=float, help='Deprecated: use --percentile-low and --percentile-high instead', default=None)
+    parser.add_argument('--percentile-low', dest='percentile_low', type=float, default=5, help='Bottom N percent of kmers to keep [default 5]')
+    parser.add_argument('--percentile-high', dest='percentile_high', type=float, default=5, help='Top N percent of kmers to keep [default 5]')
     parser.add_argument('--auto-percentile', dest='auto_percentile', action='store_true', default=False, help='Automatically determine low/high percentiles based on distribution')
     parser.add_argument('--raw-min', dest='raw_min', type=int, default=100, help='Jellyfish2 raw kmer minimum count to retain [default 100]')
     parser.add_argument('--asm-min', dest='asm_min', type=int, default=2, help='Jellyfish2 assembly kmer minimum count to retain [default 2]')
@@ -218,13 +218,13 @@ def main():
         f.write(f"###### Generate kmer comparison\n")
         if args.time:
             f.write(f"echo 'Starting k-mer comparison and ranking at:'\ndate\n")
-        kmer_comp_cmd = f"{variables['python']} {shlex.quote(spectra_path + '/scripts/utils/kmerComp.py')} -r {variables['prefix']}_raw.kdump -a {variables['prefix']}_asm.kdump -k {variables['mer_size']} -o {variables['prefix']}/{variables['prefix']}_kmer_comp -s {variables['sample_size']} -v"
-        if args.low is not None:
-            kmer_comp_cmd += f" --low {args.low}"
-        if args.high is not None:
-            kmer_comp_cmd += f" --high {args.high}"
-        if args.low is None and args.high is None:
-            kmer_comp_cmd += f" -p {args.percentile}"
+
+        low = args.percentile if args.percentile is not None else args.percentile_low
+        high = args.percentile if args.percentile is not None else args.percentile_high
+        kmer_comp_cmd = f"{variables['python']} {shlex.quote(spectra_path + '/scripts/utils/kmerComp.py')} -r {variables['prefix']}_raw.kdump -a {variables['prefix']}_asm.kdump -k {variables['mer_size']} -o {variables['prefix']}/{variables['prefix']}_kmer_comp -s {variables['sample_size']} --percentile-low {low} --percentile-high {high}"
+        if args.auto_percentile:
+            kmer_comp_cmd += " --auto"
+        kmer_comp_cmd += " -v"
         f.write(kmer_comp_cmd + "\n")
         f.write(f"{variables['python']} {shlex.quote(spectra_path + '/scripts/utils/kmerRank.py')} -r {variables['prefix']}_raw.kdump -a {variables['prefix']}_asm.kdump -o {variables['prefix']}_kmer_rank.tsv -c {variables['chunk_size']} -v\n")
         if args.time:
@@ -240,13 +240,13 @@ def main():
         if args.time:
             f.write(f'echo "Starting {variables["mer_size"]}-mer localization at:"\ndate\n')
 
-        mass_query_cmd = f"{variables['python']} {shlex.quote(spectra_path + '/scripts/utils/mass-query.py')} -i {variables['assembled']} -q {variables['prefix']}_kmer_rank.tsv -m {variables['mer_size']} -o {variables['prefix']}_mass_query.tsv -c -w {variables['mq_window']} -t {variables['threads']} -s {variables['mq_window']} --minimum-size {variables['minimum_size']} -v"
+        mass_query_cmd = f"{variables['python']} {shlex.quote(spectra_path + '/scripts/utils/mass-query.py')} -i {variables['assembled']} -q {variables['prefix']}_kmer_rank.tsv -m {variables['mer_size']} -o {variables['prefix']}_mass_query.tsv -c -w {variables['mq_window']} -t {variables['threads']} -s {variables['mq_window']} --minimum-size {variables['minimum_size']}"
         if args.auto_percentile:
             mass_query_cmd += " --auto"
         else:
-            low = args.low if args.low is not None else args.percentile
-            high = args.high if args.high is not None else args.percentile
-            mass_query_cmd += f" --low {low} --high {high}"
+            low = args.percentile if args.percentile is not None else args.percentile_low
+            high = args.percentile if args.percentile is not None else args.percentile_high
+            mass_query_cmd += f" --percentile-low {low} --percentile-high {high}"
 
         f.write(mass_query_cmd + "\n")
         f.write(f"{variables['python']} {shlex.quote(spectra_path + '/spectra.py')} plot -i {variables['prefix']}_mass_query.tsv -o {variables['prefix']}/{variables['prefix']}_mass -a\n")
@@ -306,9 +306,9 @@ def main():
             # For now, let's pass a flag if we want pdfReport to try and find them or just use defaults
             pass
         else:
-            low = args.low if args.low is not None else args.percentile
-            high = args.high if args.high is not None else args.percentile
-            pdf_report_cmd += f" --low {low} --high {high}"
+            low = args.percentile if args.percentile is not None else args.percentile_low
+            high = args.percentile if args.percentile is not None else args.percentile_high
+            pdf_report_cmd += f" --percentile-low {low} --percentile-high {high}"
 
         pdf_report_cmd += f" -r {raw_files_str} -a {variables['assembled']} -c {variables['counter']} -s {shlex.quote(spectra_path)}"
 

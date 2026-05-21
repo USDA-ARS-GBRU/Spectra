@@ -71,10 +71,10 @@ def main():
     parser.add_argument('-c', '--complement', action='store_true', help='Include reverse complements in kmer bins [default False]')
     parser.add_argument('-m', '--mer-size', dest='mer_size', type=int, help='kmer size in query [default 20]', default=20)
     parser.add_argument('-p', '--percentile-step', type=int, default=1, help='Step size for percentile bins [default 1]')
-    parser.add_argument('--low', type=float, default=5, help='Bottom N percent of kmers to keep [default 5]')
-    parser.add_argument('--high', type=float, default=5, help='Top N percent of kmers to keep [default 5]')
+    parser.add_argument('--percentile-low', dest='percentile_low', type=float, default=5, help='Bottom N percent of kmers to keep [default 5]')
+    parser.add_argument('--percentile-high', dest='percentile_high', type=float, default=5, help='Top N percent of kmers to keep [default 5]')
     parser.add_argument('--auto', action='store_true', help='Automatically determine low/high percentiles based on distribution')
-    parser.add_argument('-e', '--percentile-keep', type=int, dest='percentile_keep', default=None, help='Deprecated: use --low and --high instead')
+    parser.add_argument('-e', '--percentile-keep', type=int, dest='percentile_keep', default=None, help='Deprecated: use --percentile-low and --percentile-high instead')
     parser.add_argument('-k', '--chunk-size', dest='chunk_size', type=int, help='Max chunk size to work on [default 30000000]', default=30000000)
     parser.add_argument('-t', '--threads', type=int, default=1, help='Number of threads for parallel processing [default 1]')
     parser.add_argument('--minimum-size', dest='minimum_size', type=int, help='Minimum sequence size to include.', default=15000)
@@ -101,8 +101,8 @@ def main():
         args.chunk_size -= args.chunk_size % args.width
 
     if args.percentile_keep is not None:
-        args.low = args.percentile_keep
-        args.high = args.percentile_keep
+        args.percentile_low = args.percentile_keep
+        args.percentile_high = args.percentile_keep
 
     # Count total kmers and optionally compute auto-percentiles
     logger.info("Processing query file...")
@@ -141,9 +141,9 @@ def main():
                         if val > high_thresh:
                             high_count = table_length - i
                             break
-                args.low = (low_count / table_length) * 100
-                args.high = (high_count / table_length) * 100
-                logger.info(f"Auto-detected thresholds: low={args.low:.2f}% (<{low_thresh:.3f}), high={args.high:.2f}% (>{high_thresh:.3f})")
+                args.percentile_low = (low_count / table_length) * 100
+                args.percentile_high = (high_count / table_length) * 100
+                logger.info(f"Auto-detected thresholds: low={args.percentile_low:.2f}% (<{low_thresh:.3f}), high={args.percentile_high:.2f}% (>{high_thresh:.3f})")
             else:
                 logger.error("Query file is empty.")
                 return
@@ -158,11 +158,17 @@ def main():
     logger.info(f"Query has {table_length:,} kmers")
 
     # Identify bins of interest
+    # We want to identify bins from kmer_rank.tsv based on Nth and Mth percentiles
+    # The ranked file is sorted by reduction (negative to positive)
+    # Low percentiles (e.g. bottom 5%) are at the start of the file
+    # High percentiles (e.g. top 5%) are at the end of the file
     step = args.percentile_step
     bin_edges = list(range(0, 100, step))
     interest_bins = []
     for b in bin_edges:
-        if b < args.low or b >= 100 - args.high:
+        # If we want the bottom 5%, we take bins 0, 1, 2, 3, 4 (if step=1)
+        # If we want the top 10%, we take bins 90, 91, ..., 99
+        if b < args.percentile_low or b >= 100 - args.percentile_high:
             interest_bins.append(b)
 
     bin_thresholds = []
@@ -268,6 +274,9 @@ def main():
                                 tsv_writer.writerow(row)
                                 bin_name = row[1]
                                 count = row[4]
+                                # Bins are named pct001, pct002, etc.
+                                # pct001 contains kmers from 0% to 1% rank (lowest reduction)
+                                # pct100 contains kmers from 99% to 100% rank (highest reduction)
                                 pct_val = int(bin_name.replace('pct', ''))
                                 if pct_val <= 50:
                                     seq_total_extreme_low += count
@@ -308,8 +317,8 @@ def main():
         metrics_output = args.output.replace('.tsv', '_metrics.tsv')
         with open(metrics_output, 'w', newline='') as f:
             # Include metadata about thresholds used
-            f.write(f"# Low_Percentile_Threshold: {args.low}\n")
-            f.write(f"# High_Percentile_Threshold: {args.high}\n")
+            f.write(f"# Low_Percentile_Threshold: {args.percentile_low}\n")
+            f.write(f"# High_Percentile_Threshold: {args.percentile_high}\n")
             fieldnames = ['Sequence', 'Length', 'ExtremeLowCount', 'ExtremeHighCount', 'LowDensity', 'HighDensity']
             writer = csv.DictWriter(f, fieldnames=fieldnames, delimiter='\t')
             writer.writeheader()

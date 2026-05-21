@@ -104,18 +104,18 @@ def get_sequence_names(image_dir, prefix):
     return sorted(sequences)
 
 ### Adds the K-mer distribution plots section.
-def add_kmer_distribution_section(story, image_dir, prefix, mer, styles, percentile, low=None, high=None):
-    if low is None: low = percentile
-    if high is None: high = percentile
+def add_kmer_distribution_section(story, image_dir, prefix, mer, styles, percentile, percentile_low=None, percentile_high=None):
+    if percentile_low is None: percentile_low = percentile
+    if percentile_high is None: percentile_high = percentile
 
     story.append(Paragraph(
         f"<b>K={mer} distributions:</b> K-mer prevalence (left) in raw data [x-axis, log-scale] against prevalence in assembled data [y-axis, log-scale]. "
-        f"K-mer prevalence (right) when filtered for the bottom {low}% and top {high}% of k-mers by shift in abundance between datasets. "
+        f"K-mer prevalence (right) when filtered for the bottom {percentile_low:.2f}% and top {percentile_high:.2f}% of k-mers by shift in abundance between datasets. "
         f"The scatter plot provides a global overview of how k-mer frequencies in the assembly match the raw sequencing reads. "
         f"Ideally, k-mers should cluster along the diagonal, with peaks representing the expected sequencing coverage.",
         styles["Normal"]))
 
-    extreme_suffix = f"{percentile}pct" if low == high == percentile else f"L{low}_H{high}pct"
+    extreme_suffix = f"{percentile_low}pct" if percentile_low == percentile_high else f"L{percentile_low}_H{percentile_high}pct"
     paths = [
         os.path.join(image_dir, f"{prefix}_kmer_comp_k{mer}_scatter.png"),
         os.path.join(image_dir, f"{prefix}_kmer_comp_k{mer}_scatter_extreme_{extreme_suffix}.png")
@@ -161,11 +161,11 @@ def add_abundance_density_section(story, image_dir, prefix, mer, styles):
     add_safe_image(story, ecdf_path, 6 * inch, 3 * inch, styles)
 
 ### Adds the sequence-specific breakdown pages.
-def add_sequence_breakdown_section(story, image_dir, prefix, mer, sequence_names, max_output, ngaps, bins, styles, spectra_dir=None, canonical=False, low=5, high=5):
+def add_sequence_breakdown_section(story, image_dir, prefix, mer, sequence_names, max_output, ngaps, bins, styles, spectra_dir=None, canonical=False, percentile_low=5, percentile_high=5):
     story.append(PageBreak())
 
     paragraph_text = (f"<b>Sequence-specific spectra breakdowns:</b> the following pages are a breakdown of spectra (K=3 mer distribution) "
-                      f"and the K={mer} localization of exact kmer matches for highest {high}% and lowest {low}% in abundance change. "
+                      f"and the K={mer} localization of exact kmer matches for highest {percentile_high:.2f}% and lowest {percentile_low:.2f}% in abundance change. "
                       f"Spectra plots show the 64 K=3 mers. Each page will have: high-abundance kmers(top), spectra (middle), "
                       f"and low abundance (bottom). K={mer} abundance plots use consistent scaling across sequences.")
 
@@ -247,10 +247,11 @@ def add_sequence_breakdown_section(story, image_dir, prefix, mer, sequence_names
         add_safe_image(story, low_path, 6.5 * inch, 4 * inch, styles, spacer=0)
 
 ### Main function to construct the PDF report.
-def make_report(output_pdf, image_dir, mer, prefix, bins=False, ngaps=False, max_output=50, percentile=5, low=None, high=None,
+def make_report(output_pdf, image_dir, mer, prefix, bins=False, ngaps=False, max_output=50, percentile=None, percentile_low=5, percentile_high=5,
                 raw_files=None, assembly_file=None, counter=None, spectra_dir=None, canonical=False):
-    if low is None: low = percentile
-    if high is None: high = percentile
+    if percentile is not None:
+        percentile_low = percentile
+        percentile_high = percentile
     doc = SimpleDocTemplate(output_pdf, pagesize=letter)
     doc.title = f'Spectra output report: {prefix}'
     story = []
@@ -268,11 +269,11 @@ def make_report(output_pdf, image_dir, mer, prefix, bins=False, ngaps=False, max
     story.append(Spacer(1, 0.1 * inch))
 
     # Sections
-    add_kmer_distribution_section(story, image_dir, prefix, mer, styles, percentile, low=low, high=high)
+    add_kmer_distribution_section(story, image_dir, prefix, mer, styles, percentile=percentile_low, percentile_low=percentile_low, percentile_high=percentile_high)
     add_abundance_density_section(story, image_dir, prefix, mer, styles)
 
     sequence_names = get_sequence_names(image_dir, prefix)
-    add_sequence_breakdown_section(story, image_dir, prefix, mer, sequence_names, max_output, ngaps, bins, styles, spectra_dir=spectra_dir, canonical=canonical, low=low, high=high)
+    add_sequence_breakdown_section(story, image_dir, prefix, mer, sequence_names, max_output, ngaps, bins, styles, spectra_dir=spectra_dir, canonical=canonical, percentile_low=percentile_low, percentile_high=percentile_high)
 
     # Build PDF
     try:
@@ -290,9 +291,9 @@ def main():
     parser.add_argument('-b', '--bin-identify', dest='bins', action='store_true', help='Label bin regions in the genome assembly', default=False)
     parser.add_argument('--canonical', dest='canonical', action='store_true', help='Canonical spectra was generated', default=False)
     parser.add_argument('-p', '--prefix', dest='prefix', type=str, required=True)
-    parser.add_argument('-e', '--percentile', dest='percentile', type=float, default=5)
-    parser.add_argument('--low', dest='low', type=float, default=None)
-    parser.add_argument('--high', dest='high', type=float, default=None)
+    parser.add_argument('-e', '--percentile', dest='percentile', type=float, default=None)
+    parser.add_argument('--percentile-low', dest='percentile_low', type=float, default=5)
+    parser.add_argument('--percentile-high', dest='percentile_high', type=float, default=5)
     parser.add_argument('-x', '--max-output', dest='to_output', type=int, help='Contigs to include individual plots for, taken alphabetically.', default=50)
     parser.add_argument('-r', '--raw', dest='raw', nargs='+', help='Input raw fasta/fastq read file(s).', default=None)
     parser.add_argument('-a', '--assembled', dest='assembled', help='Input fasta assembly file.', default=None)
@@ -311,8 +312,8 @@ def main():
         ngaps=args.ngaps,
         max_output=args.to_output,
         percentile=args.percentile,
-        low=args.low,
-        high=args.high,
+        percentile_low=args.percentile_low,
+        percentile_high=args.percentile_high,
         raw_files=args.raw,
         assembly_file=args.assembled,
         counter=args.counter,
