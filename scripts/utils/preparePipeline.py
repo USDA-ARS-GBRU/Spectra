@@ -27,16 +27,16 @@ def main():
     parser.add_argument('-t', '--threads', dest='threads', type=int, help='Processing threads for Jellyfish kmer counting', required=True)
     parser.add_argument('-k', '--kmer-size', dest='mer_size', type=int, help='kmer size in query [default 20]', default=20)
     parser.add_argument('-m', '--minimum-sequence-size', dest='minimum_size', type=int, help='Minimum sequence size to include in reports [100,000 bp]', default=100000)
+    parser.add_argument('-c', '--counter', dest='counter', choices=['jellyfish', 'meryl'], default='jellyfish', help='K-mer counter to use [default jellyfish]')
+    parser.add_argument('--canonical', dest='canonical', action='store_true', help='Generate canonical spectra in addition to non-canonical', default=False)
     parser.add_argument('--n-gaps', dest='ngaps', action='store_true', help='Label gaps in the assembly in the final report', default=False)
     parser.add_argument('--bin-identify', dest='bins', action='store_true', help='Label bin regions in the genome assembly', default=False)
     parser.add_argument('--bin-penalty', dest='bin_penalty', type=int, default=1000000, help='Penalty for bin identification [default 1,000,000]')
     parser.add_argument('--bin-size', dest='bin_size', type=int, default=5, help='Minimum size for bin identification [default 5]')
-    parser.add_argument('--canonical', dest='canonical', action='store_true', help='Generate canonical spectra in addition to non-canonical', default=False)
     parser.add_argument('--jellyfish-bloom', dest='jf_bloom', type=str, default='100M', help='Jellyfish2 count bloomfilter initial size [default 100M]')
     parser.add_argument('--jellyfish-path', dest='jf_path', type=str, default='jellyfish', help='Jellyfish2 path. Default assumes it is in your env [default jellyfish]')
     parser.add_argument('--jellyfish-disk', dest='jf_disk', action='store_true', default=False, help='Use Jellyfish2 count disk parameter for large raw data files [default False]')
     parser.add_argument('--jellyfish-count-sep', dest='jf_sep', action='store_true', default=False, help='Process multiple raw inputs separately before joining together instead of as one count [default False]')
-    parser.add_argument('-c', '--counter', dest='counter', choices=['jellyfish', 'meryl'], default='jellyfish', help='K-mer counter to use [default jellyfish]')
     parser.add_argument('--meryl-memory', dest='meryl_memory', type=str, default=None, help='Meryl memory parameter (e.g. 16G). If not set, it will be automatically detected')
     parser.add_argument('--meryl-path', dest='meryl_path', type=str, default='meryl', help='Meryl path. Default assumes it is in your env [default meryl]')
     parser.add_argument('--hard-links', dest='hard_links', action='store_true', default=False, help='Hard-link input files into the current directory for processing [default False]')
@@ -242,14 +242,14 @@ def main():
             f.write(f"echo 'Starting 3-mer localization at:'\ndate\n")
 
         # Non-canonical spectra
-        f.write(f"{variables['python']} {shlex.quote(spectra_path + '/spectra.py')} count -w {variables['spectra_window']} -s {variables['spectra_window']} -i {variables['assembled']} -o {variables['prefix']}_spectra.tsv --minimum-size {variables['minimum_size']} -t {variables['threads']} -v\n")
+        f.write(f"{variables['python']} {shlex.quote(spectra_path + '/spectra.py')} count -w {variables['spectra_window']} -s {variables['spectra_window']} -i {variables['assembled']} -o {variables['prefix']}_spectra_standard.tsv --minimum-size {variables['minimum_size']} -t {variables['threads']} -v\n")
         # Circular plot still uses R as it's not implemented in Python yet
-        f.write(f"{variables['rscript']} {shlex.quote(spectra_path + '/spectra-plot.r')} -i {variables['prefix']}_spectra.tsv -o {variables['prefix']}/{variables['prefix']}_circular -c -a\n")
+        f.write(f"{variables['rscript']} {shlex.quote(spectra_path + '/spectra-plot.r')} -i {variables['prefix']}_spectra_standard.tsv -o {variables['prefix']}/{variables['prefix']}_standard_circular -c -a\n")
 
-        spectra_string = f"{variables['python']} {shlex.quote(spectra_path + '/spectra.py')} plot -i {variables['prefix']}_spectra.tsv -o {variables['prefix']}/{variables['prefix']}_spectra"
+        spectra_string = f"{variables['python']} {shlex.quote(spectra_path + '/spectra.py')} plot -i {variables['prefix']}_spectra_standard.tsv -o {variables['prefix']}/{variables['prefix']}_spectra_standard"
         if args.bins:
-            f.write(f"{variables['python']} {shlex.quote(spectra_path + '/spectra.py')} analyze -i {variables['prefix']}_spectra.tsv -o {variables['prefix']}_spectra -p {variables['bin_penalty']} -s {variables['bin_size']} -v\n")
-            spectra_string += f" --gff-file={variables['prefix']}_spectra_bins.gff --gff-tracks=bin-region"
+            f.write(f"{variables['python']} {shlex.quote(spectra_path + '/spectra.py')} analyze -i {variables['prefix']}_spectra_standard.tsv -o {variables['prefix']}_spectra_standard -p {variables['bin_penalty']} -s {variables['bin_size']} -v\n")
+            spectra_string += f" --gff-file={variables['prefix']}_spectra_standard_bins.gff --gff-tracks=bin-region"
         if args.ngaps:
             f.write(f"{variables['python']} {shlex.quote(spectra_path + '/scripts/utils/n-counter.py')} -i {variables['assembled']} -o {variables['prefix']}_ngaps.gff -v\n")
             spectra_string += f" --ngaps={variables['prefix']}_ngaps.gff"
@@ -258,7 +258,6 @@ def main():
         # Canonical spectra
         if args.canonical:
             f.write(f"{variables['python']} {shlex.quote(spectra_path + '/spectra.py')} count -c -w {variables['spectra_window']} -s {variables['spectra_window']} -i {variables['assembled']} -o {variables['prefix']}_spectra_canonical.tsv --minimum-size {variables['minimum_size']} -t {variables['threads']} -v\n")
-
             spectra_string_canon = f"{variables['python']} {shlex.quote(spectra_path + '/spectra.py')} plot -i {variables['prefix']}_spectra_canonical.tsv -o {variables['prefix']}/{variables['prefix']}_spectra_canonical"
             if args.bins:
                 f.write(f"{variables['python']} {shlex.quote(spectra_path + '/spectra.py')} analyze -i {variables['prefix']}_spectra_canonical.tsv -o {variables['prefix']}_spectra_canonical -p {variables['bin_penalty']} -s {variables['bin_size']} -v\n")

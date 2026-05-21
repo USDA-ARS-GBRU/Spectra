@@ -166,18 +166,20 @@ def add_sequence_breakdown_section(story, image_dir, prefix, mer, sequence_names
                       f"and low abundance (bottom). K={mer} abundance plots are not to scale.")
 
     if ngaps:
-        paragraph_text += " Gaps in the sequence are denoted by solid black bars at their positions."
+        paragraph_text += f" Gaps in the sequence are denoted by vertical black bars at their positions. Bars are wider than actual gap size for visibility, please refer to output file {prefix}_ngaps.gff for precise sizes."
     if bins:
-        paragraph_text += " Predicted shifts in sequence identity are labeled below Spectra 3-mers"
+        paragraph_text += " Predicted shifts in sequence identity are labeled below Spectra 3-mers."
+    if canonical:
+        paragraph_text += " Secondary spectra plots represent distribution of canonical 3-mers."
 
     if len(sequence_names) > max_output:
         logging.warning(f"Too many contigs ({len(sequence_names)}) to tabulate. Only the first {max_output} will be output.")
-        paragraph_text += f" There were too many sequences to reliably construct the report. Only the first {max_output} alphabetically are reported here."
+        paragraph_text += f" There were too many sequences to reliably construct the report. Only the first {max_output} alphabetically are reported here. Rerun with '--max-out {len(sequence_names)} or find images in the output directory."
 
     story.append(Paragraph(paragraph_text, styles["Normal"]))
     story.append(Spacer(1, 0.5 * inch))
 
-    circular_path = os.path.join(image_dir, f"{prefix}_circular.png")
+    circular_path = os.path.join(image_dir, f"{prefix}_standard_circular.png")
     add_safe_image(story, circular_path, 6.5 * inch, 6.5 * inch, styles, spacer=0)
 
     # Add legend below circular plot
@@ -206,12 +208,12 @@ def add_sequence_breakdown_section(story, image_dir, prefix, mer, sequence_names
 
         # 2. Non-canonical spectra plot
         story.append(Spacer(1, 0.1 * inch))
-        spectra_path = os.path.join(image_dir, f"{prefix}_spectra_{sequence}.png")
+        spectra_path = os.path.join(image_dir, f"{prefix}_spectra_standard_{sequence}.png")
         add_safe_image(story, spectra_path, 6.5 * inch, 4 * inch, styles, spacer=0)
 
         # 3. Bins for non-canonical spectra
         if bins:
-            gff_path = os.path.join(image_dir, f"{prefix}_spectra_gff_{sequence}.png")
+            gff_path = os.path.join(image_dir, f"{prefix}_spectra_standard_gff_{sequence}.png")
             if os.path.exists(gff_path):
                 img = image_prep(gff_path, 6.5 * inch, 4 * inch)
                 if img:
@@ -283,7 +285,7 @@ def main():
     parser.add_argument('--canonical', dest='canonical', action='store_true', help='Canonical spectra was generated', default=False)
     parser.add_argument('-p', '--prefix', dest='prefix', type=str, required=True)
     parser.add_argument('-e', '--percentile', dest='percentile', type=int, default=5)
-    parser.add_argument('-x', '--max_output', dest='to_output', type=int, help='Contigs to include individual plots for, taken alphabetically.', default=50)
+    parser.add_argument('-x', '--max-output', dest='to_output', type=int, help='Contigs to include individual plots for, taken alphabetically.', default=50)
     parser.add_argument('-r', '--raw', dest='raw', nargs='+', help='Input raw fasta/fastq read file(s).', default=None)
     parser.add_argument('-a', '--assembled', dest='assembled', help='Input fasta assembly file.', default=None)
     parser.add_argument('-c', '--counter', dest='counter', help='K-mer counter used.', default=None)
