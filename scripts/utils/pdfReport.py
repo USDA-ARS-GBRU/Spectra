@@ -104,9 +104,7 @@ def get_sequence_names(image_dir, prefix):
     return sorted(sequences)
 
 ### Adds the K-mer distribution plots section.
-def add_kmer_distribution_section(story, image_dir, prefix, mer, styles, percentile, percentile_low=None, percentile_high=None):
-    if percentile_low is None: percentile_low = percentile
-    if percentile_high is None: percentile_high = percentile
+def add_kmer_distribution_section(story, image_dir, prefix, mer, styles, percentile_low, percentile_high):
 
     story.append(Paragraph(
         f"<b>K={mer} distributions:</b> K-mer prevalence (left) in raw data [x-axis, log-scale] against prevalence in assembled data [y-axis, log-scale]. "
@@ -247,11 +245,27 @@ def add_sequence_breakdown_section(story, image_dir, prefix, mer, sequence_names
         add_safe_image(story, low_path, 6.5 * inch, 4 * inch, styles, spacer=0)
 
 ### Main function to construct the PDF report.
-def make_report(output_pdf, image_dir, mer, prefix, bins=False, ngaps=False, max_output=50, percentile=None, percentile_low=5, percentile_high=5,
+def make_report(output_pdf, image_dir, mer, prefix, bins=False, ngaps=False, max_output=50, percentile=None, percentile_low=None, percentile_high=None,
                 raw_files=None, assembly_file=None, counter=None, spectra_dir=None, canonical=False):
-    if percentile is not None:
-        percentile_low = percentile
-        percentile_high = percentile
+
+    # Try to load auto-percentiles from metrics file if not provided
+    if percentile_low is None or percentile_high is None:
+        metrics_path = os.path.join(os.path.dirname(image_dir), f"{prefix}_mass_query_metrics.tsv")
+        if os.path.exists(metrics_path):
+            try:
+                with open(metrics_path, 'r') as f:
+                    for line in f:
+                        if line.startswith("# Low_Percentile_Threshold:"):
+                            percentile_low = float(line.split(":")[1].strip())
+                        elif line.startswith("# High_Percentile_Threshold:"):
+                            percentile_high = float(line.split(":")[1].strip())
+            except Exception:
+                pass
+
+    # Defaults if still None
+    if percentile_low is None: percentile_low = percentile if percentile is not None else 5
+    if percentile_high is None: percentile_high = percentile if percentile is not None else 5
+
     doc = SimpleDocTemplate(output_pdf, pagesize=letter)
     doc.title = f'Spectra output report: {prefix}'
     story = []
@@ -269,7 +283,7 @@ def make_report(output_pdf, image_dir, mer, prefix, bins=False, ngaps=False, max
     story.append(Spacer(1, 0.1 * inch))
 
     # Sections
-    add_kmer_distribution_section(story, image_dir, prefix, mer, styles, percentile=percentile_low, percentile_low=percentile_low, percentile_high=percentile_high)
+    add_kmer_distribution_section(story, image_dir, prefix, mer, styles, percentile_low=percentile_low, percentile_high=percentile_high)
     add_abundance_density_section(story, image_dir, prefix, mer, styles)
 
     sequence_names = get_sequence_names(image_dir, prefix)

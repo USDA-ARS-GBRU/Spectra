@@ -68,12 +68,10 @@ def main():
     parser.add_argument('-s', '--spacing', type=int, default=3000, help='Window spacing [default 3000]')
     parser.add_argument('-o', '--output', default='mass_query_report.tsv', help='Output TSV file')
     parser.add_argument('-v', '--verbose', action='store_true', help='Verbose mode')
-    parser.add_argument('-c', '--complement', action='store_true', help='Include reverse complements in kmer bins [default False]')
+    parser.add_argument('-c', '--complement', action='store_true', help='Include reverse complements in kmer sets [default False]')
     parser.add_argument('-m', '--mer-size', dest='mer_size', type=int, help='kmer size in query [default 20]', default=20)
-    parser.add_argument('-p', '--percentile-step', type=int, default=1, help='Step size for percentile bins [default 1]')
     parser.add_argument('--percentile-low', dest='percentile_low', type=float, default=5, help='Bottom N percent of kmers to keep [default 5]')
     parser.add_argument('--percentile-high', dest='percentile_high', type=float, default=5, help='Top N percent of kmers to keep [default 5]')
-    parser.add_argument('--auto', action='store_true', help='Automatically determine low/high percentiles based on distribution')
     parser.add_argument('-e', '--percentile-keep', type=int, dest='percentile_keep', default=None, help='Deprecated: use --percentile-low and --percentile-high instead')
     parser.add_argument('-k', '--chunk-size', dest='chunk_size', type=int, help='Max chunk size to work on [default 30000000]', default=30000000)
     parser.add_argument('-t', '--threads', type=int, default=1, help='Number of threads for parallel processing [default 1]')
@@ -104,86 +102,28 @@ def main():
         args.percentile_low = args.percentile_keep
         args.percentile_high = args.percentile_keep
 
-    # Count total kmers and optionally compute auto-percentiles
+    # Count total kmers
     logger.info("Processing query file...")
     try:
-        if args.auto:
-            count = 0
-            sum_x = 0.0
-            sum_x2 = 0.0
-            with open(args.query) as f:
-                f.readline()
-                for line in f:
-                    parts = line.split('\t')
-                    if len(parts) >= 4:
-                        val = float(parts[3])
-                        sum_x += val
-                        sum_x2 += val * val
-                        count += 1
-            if count > 0:
-                mu = sum_x / count
-                var = (sum_x2 / count) - (mu * mu)
-                sigma = math.sqrt(max(0, var))
-                table_length = count
-
-                # Second pass to find indices for mu +/- 2*sigma
-                low_thresh = mu - 2 * sigma
-                high_thresh = mu + 2 * sigma
-                low_count = 0
-                high_count = 0
-                with open(args.query) as f:
-                    f.readline()
-                    for i, line in enumerate(f):
-                        parts = line.split('\t')
-                        val = float(parts[3])
-                        if val < low_thresh:
-                            low_count = i + 1
-                        if val > high_thresh:
-                            high_count = table_length - i
-                            break
-                args.percentile_low = (low_count / table_length) * 100
-                args.percentile_high = (high_count / table_length) * 100
-                logger.info(f"Auto-detected thresholds: low={args.percentile_low:.2f}% (<{low_thresh:.3f}), high={args.percentile_high:.2f}% (>{high_thresh:.3f})")
-            else:
-                logger.error("Query file is empty.")
-                return
-        else:
-            with open(args.query) as f:
-                f.readline() # skip header
-                table_length = sum(1 for _ in f)
+        with open(args.query) as f:
+            f.readline() # skip header
+            table_length = sum(1 for _ in f)
     except Exception as e:
         logger.error(f"Error reading query file: {e}")
         return
 
     logger.info(f"Query has {table_length:,} kmers")
 
-    # Identify bins of interest
-    # We want to identify bins from kmer_rank.tsv based on Nth and Mth percentiles
-    # The ranked file is sorted by reduction (negative to positive)
-    # Low percentiles (e.g. bottom 5%) are at the start of the file
-    # High percentiles (e.g. top 5%) are at the end of the file
-    step = args.percentile_step
-    bin_edges = list(range(0, 100, step))
-    interest_bins = []
-    for b in bin_edges:
-        # If we want the bottom 5%, we take bins 0, 1, 2, 3, 4 (if step=1)
-        # If we want the top 10%, we take bins 90, 91, ..., 99
-        if b < args.percentile_low or b >= 100 - args.percentile_high:
-            interest_bins.append(b)
+    # Define thresholds
+    low_cutoff = int(args.percentile_low / 100 * table_length)
+    high_cutoff = int((100 - args.percentile_high) / 100 * table_length)
 
-    bin_thresholds = []
-    bin_names = []
-    for i, b in enumerate(interest_bins):
-        start_idx = int(b / 100 * table_length)
-        end_idx = int(min(100, b + step) / 100 * table_length)
-        bin_name = f"pct{b + step:03d}"
-        bin_names.append(bin_name)
-        bin_thresholds.append((start_idx, end_idx, i))
+    # Label "low" and "high"
+    bin_names = ["low", "high"]
+    # 0 = low, 1 = high
 
-    bin_thresholds.sort()
-
-    # Map kmers to bins in a single pass
-    logger.info("Loading kmers into bins...")
+    # Map kmers to "low" and "high" labels in a single pass
+    logger.info("Loading kmers into sets...")
     kmer_map = {}
 
     def add_to_map(k, b_id):
@@ -200,24 +140,22 @@ def main():
     try:
         with open(args.query) as f:
             f.readline() # skip header
-            curr_bin_idx = 0
             for idx, line in enumerate(f):
-                # Advance to the correct bin threshold
-                while curr_bin_idx < len(bin_thresholds) and idx >= bin_thresholds[curr_bin_idx][1]:
-                    curr_bin_idx += 1
-
-                if curr_bin_idx < len(bin_thresholds):
-                    start, end, bin_id = bin_thresholds[curr_bin_idx]
-                    if start <= idx < end:
-                        kmer = line.strip().split("\t")[0].upper()
-                        add_to_map(kmer, bin_id)
-                        if args.complement:
-                            add_to_map(rc(kmer), bin_id)
+                if idx < low_cutoff:
+                    kmer = line.strip().split("\t")[0].upper()
+                    add_to_map(kmer, 0)
+                    if args.complement:
+                        add_to_map(rc(kmer), 0)
+                elif idx >= high_cutoff:
+                    kmer = line.strip().split("\t")[0].upper()
+                    add_to_map(kmer, 1)
+                    if args.complement:
+                        add_to_map(rc(kmer), 1)
     except Exception as e:
-        logger.error(f"Error mapping kmers to bins: {e}")
+        logger.error(f"Error mapping kmers: {e}")
         return
 
-    logger.info(f"Loaded {len(kmer_map):,} unique kmers across {len(bin_names)} bins")
+    logger.info(f"Loaded {len(kmer_map):,} unique kmers across {len(bin_names)} sets")
 
     # Prepare for parallel processing using global variables for Copy-on-Write sharing
     global GLOBAL_KMER_MAP
@@ -274,11 +212,8 @@ def main():
                                 tsv_writer.writerow(row)
                                 bin_name = row[1]
                                 count = row[4]
-                                # Bins are named pct001, pct002, etc.
-                                # pct001 contains kmers from 0% to 1% rank (lowest reduction)
-                                # pct100 contains kmers from 99% to 100% rank (highest reduction)
-                                pct_val = int(bin_name.replace('pct', ''))
-                                if pct_val <= 50:
+                                # Labels are "low" or "high"
+                                if bin_name == "low":
                                     seq_total_extreme_low += count
                                 else:
                                     seq_total_extreme_high += count
@@ -292,8 +227,7 @@ def main():
                             tsv_writer.writerow(row)
                             bin_name = row[1]
                             count = row[4]
-                            pct_val = int(bin_name.replace('pct', ''))
-                            if pct_val <= 50:
+                            if bin_name == "low":
                                 seq_total_extreme_low += count
                             else:
                                 seq_total_extreme_high += count

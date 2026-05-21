@@ -241,12 +241,9 @@ def main():
             f.write(f'echo "Starting {variables["mer_size"]}-mer localization at:"\ndate\n')
 
         mass_query_cmd = f"{variables['python']} {shlex.quote(spectra_path + '/scripts/utils/mass-query.py')} -i {variables['assembled']} -q {variables['prefix']}_kmer_rank.tsv -m {variables['mer_size']} -o {variables['prefix']}_mass_query.tsv -c -w {variables['mq_window']} -t {variables['threads']} -s {variables['mq_window']} --minimum-size {variables['minimum_size']}"
-        if args.auto_percentile:
-            mass_query_cmd += " --auto"
-        else:
-            low = args.percentile if args.percentile is not None else args.percentile_low
-            high = args.percentile if args.percentile is not None else args.percentile_high
-            mass_query_cmd += f" --percentile-low {low} --percentile-high {high}"
+        low = args.percentile if args.percentile is not None else args.percentile_low
+        high = args.percentile if args.percentile is not None else args.percentile_high
+        mass_query_cmd += f" --percentile-low {low} --percentile-high {high}"
 
         f.write(mass_query_cmd + "\n")
         f.write(f"{variables['python']} {shlex.quote(spectra_path + '/spectra.py')} plot -i {variables['prefix']}_mass_query.tsv -o {variables['prefix']}/{variables['prefix']}_mass -a\n")

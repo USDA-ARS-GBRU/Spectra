@@ -127,8 +127,8 @@ def plot_spectra(df, output_path, sequence, x_min, x_max, show_axes=True, freque
 def plot_mass(df, output_prefix, sequence, x_min, x_max, show_axes=True, y_max=None):
     df = df.sort_values(['Start', 'Bin'])
     bins = sorted(df['Bin'].unique())
-    low_bins = [b for b in bins if int(b.replace('pct', '')) <= 50]
-    high_bins = [b for b in bins if int(b.replace('pct', '')) > 50]
+    low_bins = [b for b in bins if b == "low" or (str(b).startswith('pct') and int(str(b).replace('pct', '')) <= 50)]
+    high_bins = [b for b in bins if b == "high" or (str(b).startswith('pct') and int(str(b).replace('pct', '')) > 50)]
 
     all_starts = sorted(df['Start'].unique())
     midpoints = []
@@ -268,8 +268,8 @@ def execute(args):
     if is_mass:
         # Calculate global y_max for consistent scaling across sequences
         bins = df['Bin'].unique()
-        low_bins = [b for b in bins if int(str(b).replace('pct', '')) <= 50]
-        high_bins = [b for b in bins if int(str(b).replace('pct', '')) > 50]
+        low_bins = [b for b in bins if b == "low" or (str(b).startswith('pct') and int(str(b).replace('pct', '')) <= 50)]
+        high_bins = [b for b in bins if b == "high" or (str(b).startswith('pct') and int(str(b).replace('pct', '')) > 50)]
 
         max_low = 0
         if low_bins:
