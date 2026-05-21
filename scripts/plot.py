@@ -77,7 +77,7 @@ def setup_axes(ax, x_min, x_max, show_axes=True):
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
 
-def plot_spectra(df, output_path, sequence, x_min, x_max, show_axes=True, frequencies=False, ngaps_path=None):
+def plot_spectra(df, output_path, sequence, x_min, x_max, show_axes=True, frequencies=False, ngaps_path=None, y_max=None):
     queries = [c for c in df.columns if len(c) == 3 and all(b in 'ACGT' for b in c)]
     ordered_queries, color_map = get_triplet_colors(queries)
     # Queries sorted to match the expected color gradient
@@ -115,7 +115,10 @@ def plot_spectra(df, output_path, sequence, x_min, x_max, show_axes=True, freque
             logger.error(f"Error reading ngaps GFF {ngaps_path}: {e}")
 
     setup_axes(ax, x_min, x_max, show_axes)
-    ax.set_ylim(0, 1.0)
+    if y_max:
+        ax.set_ylim(0, y_max)
+    else:
+        ax.set_ylim(0, 1.0)
     ax.set_ylabel('Proportion' if not frequencies else 'Frequency', fontsize=8)
 
     plt.savefig(output_path, dpi=PLOT_CONFIG['dpi'])
@@ -260,16 +263,39 @@ def execute(args):
     else:
         sequences = df['Sequence'].unique()
 
+    y_max_mass = None
+    y_max_spectra = None
+    if is_mass:
+        # Calculate global y_max for consistent scaling across sequences
+        bins = df['Bin'].unique()
+        low_bins = [b for b in bins if int(str(b).replace('pct', '')) <= 50]
+        high_bins = [b for b in bins if int(str(b).replace('pct', '')) > 50]
+
+        max_low = 0
+        if low_bins:
+            max_low = df[df['Bin'].isin(low_bins)].groupby(['Sequence', 'Start'])['Count'].sum().max()
+        max_high = 0
+        if high_bins:
+            max_high = df[df['Bin'].isin(high_bins)].groupby(['Sequence', 'Start'])['Count'].sum().max()
+
+        y_max_mass = max(max_low, max_high) * 1.1 if not np.isnan(max(max_low, max_high)) else None
+    else:
+        if args.frequencies:
+            # For frequencies, we might want consistent Y scale if they are not all 0-1
+            queries = [c for c in df.columns if len(c) == 3 and all(b in 'ACGT' for b in c)]
+            if queries:
+                y_max_spectra = df[queries].sum(axis=1).max() * 1.1
+
     for seq in sequences:
         seq_df = df[df['Sequence'] == seq]
         if seq_df.empty: continue
         x_min = seq_df['Start'].min()
         x_max = seq_df['End'].max()
         if is_mass:
-            plot_mass(seq_df, args.output, seq, x_min, x_max, show_axes=args.axes)
+            plot_mass(seq_df, args.output, seq, x_min, x_max, show_axes=args.axes, y_max=y_max_mass)
         else:
             out_path = f"{args.output}_{seq}.png"
-            plot_spectra(seq_df, out_path, seq, x_min, x_max, show_axes=args.axes, frequencies=args.frequencies, ngaps_path=args.ngaps if hasattr(args, 'ngaps') else None)
+            plot_spectra(seq_df, out_path, seq, x_min, x_max, show_axes=args.axes, frequencies=args.frequencies, ngaps_path=args.ngaps if hasattr(args, 'ngaps') else None, y_max=y_max_spectra)
             if hasattr(args, 'gff_file') and args.gff_file:
                 gff_tracks = args.gff_tracks.split(',') if args.gff_tracks else None
                 plot_gff(args.gff_file, f"{args.output}_gff_{seq}.png", seq, x_min, x_max, tracks=gff_tracks)

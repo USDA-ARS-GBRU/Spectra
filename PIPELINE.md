@@ -68,13 +68,45 @@ Once you have generated the bash script (e.g., `spectra_script.sh`), you can exe
 2.  **Resource Management**: For large datasets, it is recommended to run this on a high-performance computing (HPC) cluster. You may need to modify the generated script to include scheduler headers (like SLURM `#SBATCH` directives).
 3.  **Environment**: Ensure `jellyfish` (or `meryl`), `python`, and `Rscript` are in your system's PATH.
 
+# Example: Arabidopsis thaliana (Tanz-1.10024)
+This example demonstrates a full pipeline run using a GenBank dataset for *Arabidopsis thaliana*.
+
+### 1. Download Data
+```bash
+# Assembly (GCA_946409825.1)
+wget ftp://ftp.ncbi.nlm.nih.gov/genbank/genomes/all/GCA/946/409/825/GCA_946409825.1_Tanz-1.10024.PacbioHiFiAssembly/GCA_946409825.1_Tanz-1.10024.PacbioHiFiAssembly_genomic.fna.gz
+gunzip GCA_946409825.1_Tanz-1.10024.PacbioHiFiAssembly_genomic.fna.gz -c > athal_asm.fa
+
+# Raw Reads (ERR10084917 - sample subset or use full if resources allow)
+# Using fastq-dump or curl/wget from ENA
+wget ftp://ftp.sra.ebi.ac.uk/vol1/fastq/ERR100/084/ERR10084917/ERR10084917_1.fastq.gz
+```
+
+### 2. Prepare Pipeline
+```bash
+python scripts/utils/preparePipeline.py \
+    -r ERR10084917_1.fastq.gz \
+    -a athal_asm.fa \
+    -o athal_pipeline.sh \
+    -p athal_run \
+    -t 16 \
+    --auto-percentile \
+    --bin-identify \
+    --n-gaps
+```
+
+### 3. Run Pipeline
+```bash
+bash athal_pipeline.sh
+```
+
 # Detailed Output Explanation
 
 The pipeline generates several files and a comprehensive PDF report. Below is a detailed breakdown of what these outputs represent.
 
 ## Summary Files
-*   `{prefix}_raw_count.jstats`: Summary statistics for k-mers found in the raw reads (e.g., total k-mers, unique k-mers).
-*   `{prefix}_asm_count.jstats`: Summary statistics for k-mers found in the assembly.
+*   `{prefix}_raw_count.kstats`: Summary statistics for k-mers found in the raw reads (e.g., total k-mers, unique k-mers).
+*   `{prefix}_asm_count.kstats`: Summary statistics for k-mers found in the assembly.
 *   `{prefix}_spectra.tsv`: A large table containing the counts of all 64 possible 3-mers across sliding windows of the assembly.
 *   `{prefix}_kmer_rank.tsv`: A list of all k-mers (size *K*) ranked by their log-fold change between raw reads and the assembly.
 

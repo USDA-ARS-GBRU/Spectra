@@ -10,14 +10,16 @@ import logging
 from scipy.stats import gaussian_kde
 
 # CLI arguments
-parser = argparse.ArgumentParser(description="Streamed comparison of raw vs assembly jellyfish dump files")
-parser.add_argument("-r", "--raw_dump", type=str, required=True, help="Raw jellyfish dump file")
-parser.add_argument("-a", "--asm_dump", type=str, required=True, help="Assembly jellyfish dump file")
+parser = argparse.ArgumentParser(description="Streamed comparison of raw vs assembly k-mer dump files")
+parser.add_argument("-r", "--raw_dump", type=str, required=True, help="Raw k-mer dump file")
+parser.add_argument("-a", "--asm_dump", type=str, required=True, help="Assembly k-mer dump file")
 parser.add_argument("-k", "--kmer_size", type=int, default=20, help="K-mer size [default 20]")
 parser.add_argument("-o", "--output_prefix", type=str, default="kmerComp_output", help="Output prefix")
 parser.add_argument("-f", "--output_format", type=str, default="png", help="Output image format [default png]")
 parser.add_argument("-s", "--plot_sample", type=int, default=1000000, help="Number of kmers to sample for plots")
-parser.add_argument("-p", "--percentile", type=int, default=1, help="Percentile cutoff for extreme kmers")
+parser.add_argument("--low", type=float, default=1, help="Bottom N percent of kmers for extreme scatter plot [default 1]")
+parser.add_argument("--high", type=float, default=1, help="Top N percent of kmers for extreme scatter plot [default 1]")
+parser.add_argument("-p", "--percentile", type=float, default=None, help="Deprecated: use --low and --high instead")
 parser.add_argument('-v', '--verbose', dest='verbose', action='store_true', help='Verbose mode', default=False)
 
 args = parser.parse_args()
@@ -85,11 +87,14 @@ df["logAsm"] = np.log10(df["AsmCount"] + 1)
 df["reduction"] = df["logAsm"] - df["logRaw"]
 df["reductionRank"] = df["reduction"].rank(method="first")
 
+if args.percentile is not None:
+    args.low = args.percentile
+    args.high = args.percentile
+
 # Percentile filtering on sample
-p_val = args.percentile / 100.0
 n_rows = len(df)
-low_cut = int(math.ceil(n_rows * p_val))
-high_cut = int(math.floor(n_rows * (1 - p_val)))
+low_cut = int(math.ceil(n_rows * (args.low / 100.0)))
+high_cut = int(math.floor(n_rows * (1 - args.high / 100.0)))
 df_sorted = df.sort_values("reductionRank")
 df_extreme = pd.concat([df_sorted.iloc[:low_cut], df_sorted.iloc[high_cut:]])
 
@@ -154,9 +159,11 @@ if not df_extreme.empty:
     plt.ylim(ymin, ymax)
     plt.xlabel("Kmers in raw data")
     plt.ylabel("Kmers in assembly")
-    plt.title(f"K={args.kmer_size} extreme kmers (±{args.percentile}%)")
+    plt.title(f"K={args.kmer_size} extreme kmers (Low {args.low}%, High {args.high}%)")
     plt.colorbar(label="Log-fold change")
-    plt.savefig(f"{args.output_prefix}_k{args.kmer_size}_scatter_extreme_{args.percentile}pct.{args.output_format}", dpi=200)
+    # For compatibility with pdfReport, we keep a generic name if they are equal, or use a new naming scheme
+    suffix = f"{args.low}pct" if args.low == args.high else f"L{args.low}_H{args.high}pct"
+    plt.savefig(f"{args.output_prefix}_k{args.kmer_size}_scatter_extreme_{suffix}.{args.output_format}", dpi=200)
     plt.close()
 
 # ECDF

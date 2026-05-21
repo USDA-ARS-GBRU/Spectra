@@ -2,6 +2,7 @@
 import argparse
 import os
 import time
+import math
 from Bio import SeqIO
 import csv
 import logging
@@ -70,7 +71,10 @@ def main():
     parser.add_argument('-c', '--complement', action='store_true', help='Include reverse complements in kmer bins [default False]')
     parser.add_argument('-m', '--mer-size', dest='mer_size', type=int, help='kmer size in query [default 20]', default=20)
     parser.add_argument('-p', '--percentile-step', type=int, default=1, help='Step size for percentile bins [default 1]')
-    parser.add_argument('-e', '--percentile-keep', type=int, dest='percentile_keep', default=5, help='Extreme kmer tabulation. Top and bottom N percent kept [default 5]')
+    parser.add_argument('--low', type=float, default=5, help='Bottom N percent of kmers to keep [default 5]')
+    parser.add_argument('--high', type=float, default=5, help='Top N percent of kmers to keep [default 5]')
+    parser.add_argument('--auto', action='store_true', help='Automatically determine low/high percentiles based on distribution')
+    parser.add_argument('-e', '--percentile-keep', type=int, dest='percentile_keep', default=None, help='Deprecated: use --low and --high instead')
     parser.add_argument('-k', '--chunk-size', dest='chunk_size', type=int, help='Max chunk size to work on [default 30000000]', default=30000000)
     parser.add_argument('-t', '--threads', type=int, default=1, help='Number of threads for parallel processing [default 1]')
     parser.add_argument('--minimum-size', dest='minimum_size', type=int, help='Minimum sequence size to include.', default=15000)
@@ -96,12 +100,57 @@ def main():
     if args.chunk_size % args.width != 0:
         args.chunk_size -= args.chunk_size % args.width
 
-    # Count total kmers
-    logger.info("Counting kmers in query file...")
+    if args.percentile_keep is not None:
+        args.low = args.percentile_keep
+        args.high = args.percentile_keep
+
+    # Count total kmers and optionally compute auto-percentiles
+    logger.info("Processing query file...")
     try:
-        with open(args.query) as f:
-            f.readline() # skip header
-            table_length = sum(1 for _ in f)
+        if args.auto:
+            count = 0
+            sum_x = 0.0
+            sum_x2 = 0.0
+            with open(args.query) as f:
+                f.readline()
+                for line in f:
+                    parts = line.split('\t')
+                    if len(parts) >= 4:
+                        val = float(parts[3])
+                        sum_x += val
+                        sum_x2 += val * val
+                        count += 1
+            if count > 0:
+                mu = sum_x / count
+                var = (sum_x2 / count) - (mu * mu)
+                sigma = math.sqrt(max(0, var))
+                table_length = count
+
+                # Second pass to find indices for mu +/- 2*sigma
+                low_thresh = mu - 2 * sigma
+                high_thresh = mu + 2 * sigma
+                low_count = 0
+                high_count = 0
+                with open(args.query) as f:
+                    f.readline()
+                    for i, line in enumerate(f):
+                        parts = line.split('\t')
+                        val = float(parts[3])
+                        if val < low_thresh:
+                            low_count = i + 1
+                        if val > high_thresh:
+                            high_count = table_length - i
+                            break
+                args.low = (low_count / table_length) * 100
+                args.high = (high_count / table_length) * 100
+                logger.info(f"Auto-detected thresholds: low={args.low:.2f}% (<{low_thresh:.3f}), high={args.high:.2f}% (>{high_thresh:.3f})")
+            else:
+                logger.error("Query file is empty.")
+                return
+        else:
+            with open(args.query) as f:
+                f.readline() # skip header
+                table_length = sum(1 for _ in f)
     except Exception as e:
         logger.error(f"Error reading query file: {e}")
         return
@@ -113,7 +162,7 @@ def main():
     bin_edges = list(range(0, 100, step))
     interest_bins = []
     for b in bin_edges:
-        if not (args.percentile_keep - 1 < b < 100 - args.percentile_keep):
+        if b < args.low or b >= 100 - args.high:
             interest_bins.append(b)
 
     bin_thresholds = []
@@ -172,6 +221,11 @@ def main():
     GLOBAL_MER_SIZE = args.mer_size
     GLOBAL_BIN_NAMES = bin_names
 
+    # Calculate genome assembly quality metric
+    # Metric: accumulation of extreme k-mers relative to random k-mers
+    # We'll compute this by sequence later if needed, but here we can prepare global stats
+    logger.info("Computing assembly quality metric components...")
+
     # Use 'fork' to share memory efficiently on Unix-like systems
     try:
         mp_context = multiprocessing.get_context('fork')
@@ -187,6 +241,7 @@ def main():
 
     # Prepare output
     try:
+        quality_metrics = []
         with open(args.output, "w", newline="") as file_output:
             tsv_writer = csv.writer(file_output, delimiter="\t")
             tsv_writer.writerow(["Sequence", "Bin", "Start", "End", "Count"])
@@ -199,22 +254,68 @@ def main():
                     continue
 
                 logger.info(f"Processing sequence {sequence_name} ({sequence_length:,} bp)")
+                seq_total_extreme_low = 0
+                seq_total_extreme_high = 0
+                seq_windows = 0
 
                 if sequence_length > args.chunk_size:
                     for i in range(0, sequence_length, args.chunk_size):
                         sub_seq = str(record.seq[i:i + args.chunk_size]).upper()
                         tasks = window_tasks(sub_seq, args.width, args.spacing, sequence_name, offset=i)
                         for result_rows in pool.imap(process_window, tasks):
+                            seq_windows += 1
                             for row in result_rows:
                                 tsv_writer.writerow(row)
+                                bin_name = row[1]
+                                count = row[4]
+                                pct_val = int(bin_name.replace('pct', ''))
+                                if pct_val <= 50:
+                                    seq_total_extreme_low += count
+                                else:
+                                    seq_total_extreme_high += count
                         del sub_seq
                 else:
                     seq_str = str(record.seq).upper()
                     tasks = window_tasks(seq_str, args.width, args.spacing, sequence_name)
                     for result_rows in pool.imap(process_window, tasks):
+                        seq_windows += 1
                         for row in result_rows:
                             tsv_writer.writerow(row)
+                            bin_name = row[1]
+                            count = row[4]
+                            pct_val = int(bin_name.replace('pct', ''))
+                            if pct_val <= 50:
+                                seq_total_extreme_low += count
+                            else:
+                                seq_total_extreme_high += count
                     del seq_str
+
+                # Calculate sequence-level metric
+                # Extreme k-mer density (extreme k-mers per bp)
+                if sequence_length > 0:
+                    low_density = seq_total_extreme_low / sequence_length
+                    high_density = seq_total_extreme_high / sequence_length
+                    quality_metrics.append({
+                        'Sequence': sequence_name,
+                        'Length': sequence_length,
+                        'ExtremeLowCount': seq_total_extreme_low,
+                        'ExtremeHighCount': seq_total_extreme_high,
+                        'LowDensity': low_density,
+                        'HighDensity': high_density
+                    })
+
+        # Write quality metrics to a separate file
+        metrics_output = args.output.replace('.tsv', '_metrics.tsv')
+        with open(metrics_output, 'w', newline='') as f:
+            # Include metadata about thresholds used
+            f.write(f"# Low_Percentile_Threshold: {args.low}\n")
+            f.write(f"# High_Percentile_Threshold: {args.high}\n")
+            fieldnames = ['Sequence', 'Length', 'ExtremeLowCount', 'ExtremeHighCount', 'LowDensity', 'HighDensity']
+            writer = csv.DictWriter(f, fieldnames=fieldnames, delimiter='\t')
+            writer.writeheader()
+            for m in quality_metrics:
+                writer.writerow(m)
+        logger.info(f"Assembly quality metrics written to {metrics_output}")
     except Exception as e:
         logger.error(f"Error during mass query processing: {e}")
     finally:
