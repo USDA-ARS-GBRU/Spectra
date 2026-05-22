@@ -20,7 +20,7 @@ parser.add_argument("-s", "--plot_sample", type=int, default=1000000, help="Numb
 parser.add_argument("--percentile-low", dest='percentile_low', type=float, default=1, help="Bottom N percent of kmers for extreme scatter plot [default 1]")
 parser.add_argument("--percentile-high", dest='percentile_high', type=float, default=1, help="Top N percent of kmers for extreme scatter plot [default 1]")
 parser.add_argument("--auto", dest='auto', action='store_true', help='Automatically determine low/high percentiles based on distribution')
-parser.add_argument("--auto-std", dest="std", type=int, default=1, help='Standard deviation degrees of freedom for automatic percentiles [default 1]')
+parser.add_argument("--auto-std", dest="std", type=int, default=1, help='Take the Nth standard deviation for automatic determination [default 1]')
 parser.add_argument('-v', '--verbose', dest='verbose', action='store_true', help='Verbose mode', default=False)
 
 args = parser.parse_args()
@@ -80,7 +80,6 @@ if not sample_kmers:
 
 logger.info(f"Processed {total_pairs:,} matched kmers; kept {len(sample_kmers):,} in sample.")
 
-
 # Transformations on sample
 df = pd.DataFrame(sample_kmers, columns=["kmer", "RawCount", "AsmCount"])
 df["logRaw"] = np.log10(df["RawCount"] + 1)
@@ -88,16 +87,11 @@ df["logAsm"] = np.log10(df["AsmCount"] + 1)
 df["reduction"] = df["logAsm"] - df["logRaw"]
 df["reductionRank"] = df["reduction"].rank(method="first")
 
-if args.percentile is not None:
-    args.percentile_low = args.percentile
-    args.percentile_high = args.percentile
-
 if args.auto:
     mu = df["reduction"].mean()
-    sigma = df["reduction"].std(ddof=args.std)
-    low_thresh = mu - 2 * sigma
-    high_thresh = mu + 2 * sigma
-
+    sigma = df["reduction"].std()
+    low_thresh = mu - args.std * sigma
+    high_thresh = mu + args.std * sigma
     df_sorted = df.sort_values("reduction")
     low_cut_idx = df_sorted["reduction"].searchsorted(low_thresh, side='right')
     high_cut_idx = df_sorted["reduction"].searchsorted(high_thresh, side='left')
@@ -123,47 +117,21 @@ else:
     high_cut = int(math.floor(n_rows * (1 - args.percentile_high / 100.0)))
     df_sorted = df.sort_values("reductionRank")
     df_extreme = pd.concat([df_sorted.iloc[:low_cut], df_sorted.iloc[high_cut:]])
+    low_thresh = df_sorted.iloc[low_cut]['reduction']
+    high_thresh= df_sorted.iloc[high_cut]['reduction']
 
 xmin = df_sorted["RawCount"].min()
 xmax = df_sorted["RawCount"].max()
 ymin = df_sorted["AsmCount"].min()
 ymax = df_sorted["AsmCount"].max()
 
+scatter_cmap="winter"
 # Plotting functions
 sns.set(style="whitegrid")
-
 # Scatter
 plt.figure(figsize=(8, 8))
-
-# Composite color mapping:
-# Normalized log counts for color mapping
-r_min, r_max = df["logRaw"].min(), df["logRaw"].max()
-a_min, a_max = df["logAsm"].min(), df["logAsm"].max()
-
-
-def normalize_color(vals, vmin, vmax):
-    if vmin == vmax:
-        return np.zeros_like(vals)
-    return (vals - vmin) / (vmax - vmin)
-
-
-norm_r = normalize_color(df["logRaw"].values, r_min, r_max)
-norm_a = normalize_color(df["logAsm"].values, a_min, a_max)
-
-# Color mapping: Bilinear interpolation between four corners
-c00 = np.array([0.9, 0.8, 0.9])
-c10 = np.array([0.5, 0.0, 0.0])
-c01 = np.array([0.0, 0.0, 0.5])
-c11 = np.array([0.25, 0.0, 0.25])
-
-# Vectorized bilinear interpolation
-colors = (np.outer((1 - norm_r) * (1 - norm_a), c00) +
-          np.outer(norm_r * (1 - norm_a), c10) +
-          np.outer((1 - norm_r) * norm_a, c01) +
-          np.outer(norm_r * norm_a, c11))
-
-plt.scatter(df["RawCount"], df["AsmCount"], s=1, alpha=0.3, c=colors, edgecolors='none')
-
+plt.scatter(df["RawCount"], df["AsmCount"], s=1, alpha=1, c=df['reduction'], cmap=scatter_cmap, edgecolors='none')
+plt.colorbar(label="Log-fold change")
 plt.xscale("log")
 plt.yscale("log")
 plt.xlim(xmin, xmax)
@@ -178,7 +146,7 @@ plt.close()
 if not df_extreme.empty:
     plt.figure(figsize=(8, 8))
     plt.scatter(df_extreme["RawCount"], df_extreme["AsmCount"],
-                c=df_extreme["reduction"], cmap="coolwarm", s=2, alpha=0.6)
+                c=df_extreme["reduction"], cmap=scatter_cmap, s=2, alpha=1)
     plt.xscale("log")
     plt.yscale("log")
     plt.xlim(xmin, xmax)
@@ -196,6 +164,8 @@ plt.figure(figsize=(8, 6))
 ecdf_x = np.sort(df["reduction"])
 ecdf_y = np.arange(1, len(ecdf_x) + 1) / len(ecdf_x)
 plt.step(ecdf_x, ecdf_y, where="post", color="red")
+plt.axvline(low_thresh,ls="dashed", color="black",ymin=0,ymax=1)
+plt.axvline(high_thresh,ls="dashed", color="black",ymin=0,ymax=1)
 plt.xlabel("Log-fold kmer change")
 plt.ylabel("Cumulative probability")
 plt.title(f"K={args.kmer_size} empirical cumulative distribution")
@@ -207,6 +177,8 @@ plt.figure(figsize=(8, 6))
 sns.kdeplot(df["reduction"], fill=True, alpha=0.6, color="#399602")
 plt.xlabel("Log-fold kmer change")
 plt.ylabel("Density")
+plt.axvline(high_thresh,ls="dashed", color="black",ymin=0,ymax=1)
+plt.axvline(low_thresh,ls="dashed", color="black",ymin=0,ymax=1)
 plt.title(f"K={args.kmer_size} coverage density")
 plt.savefig(f"{args.output_prefix}_k{args.kmer_size}_density.{args.output_format}", dpi=200)
 plt.close()

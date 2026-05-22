@@ -107,9 +107,10 @@ def get_sequence_names(image_dir, prefix):
 def add_kmer_distribution_section(story, image_dir, prefix, mer, styles, percentile_low, percentile_high):
     story.append(Paragraph(
         f"<b>K={mer} distributions:</b> K-mer prevalence (left) in raw data [x-axis, log-scale] against prevalence in assembled data [y-axis, log-scale]. "
-        f"K-mer prevalence (right) when filtered for the bottom {percentile_low:.2f}% and top {percentile_high:.2f}% of k-mers by shift in abundance between datasets. "
+        f"K-mer prevalence (right) when filtered for the bottom {percentile_low:.2f}% and top {percentile_high:.2f}% of k-mers by shift in k-mer abundance between datasets. "
         f"The scatter plot provides a global overview of how k-mer frequencies in the assembly match the raw sequencing reads. "
-        f"Ideally, k-mers should cluster along the diagonal, with peaks representing the expected sequencing coverage.",
+        f"Ideally, a 1-to-1 representation of k-mers should be clustered along the diagonal. "
+        f"K-mers to the top-left and bottom-right of the diagonal are either increased or decreased in abundance, respectively.",
         styles["Normal"]))
 
     paths = [
@@ -119,15 +120,6 @@ def add_kmer_distribution_section(story, image_dir, prefix, mer, styles, percent
     add_image_row(story, paths, [3.75 * inch] * 2, [4.5 * inch] * 2, styles)
 
     story.append(Spacer(1, 0.1 * inch))
-    story.append(Paragraph(
-        f"<b>K={mer} abundance shift:</b> log-fold change in k-mer representation between raw and assembled data. "
-        f"Peaks in change should roughly corroborate the sequencing coverage of the genome. "
-        f"Positive shifts indicate k-mers over-represented in the assembly, while negative shifts indicate k-mers that are more "
-        f"abundant in the raw data than in the final assembly (potentially collapsed or missing regions).",
-        styles["Normal"]))
-
-    density_path = os.path.join(image_dir, f"{prefix}_kmer_comp_k{mer}_density.png")
-    add_safe_image(story, density_path, 6 * inch, 3 * inch, styles)
 
 ### Adds the abundance density and ECDF section.
 def add_abundance_density_section(story, image_dir, prefix, mer, styles):
@@ -136,7 +128,9 @@ def add_abundance_density_section(story, image_dir, prefix, mer, styles):
         f"<b>K={mer} abundance density:</b> Kernel density estimation (left) and violin plots (right) of k-mers in raw [blue] and assembled [orange] data. "
         f"Graphical estimations might not be smoothed depending on the data's composition. "
         f"These plots compare the overall distribution of k-mer multiplicities. A well-assembled genome should "
-        f"closely mirror the distribution of the raw data, particularly at the primary coverage peak.",
+        f"closely mirror the distribution of the raw data, particularly at the primary coverage peak. "
+        f"Secondary peaks suggest high amounts of repetitive k-mers likely part of large tandem repeats. "
+        f"Difference in peak centering reflects depth of sequencing coverage. K-mers in the assembled data in excess of the raw data suggests complications during assembly.",
         styles["Normal"]))
 
     paths = [
@@ -145,16 +139,28 @@ def add_abundance_density_section(story, image_dir, prefix, mer, styles):
     ]
     add_image_row(story, paths, [3.75 * inch] * 2, [4.5 * inch] * 2, styles)
 
-    story.append(Spacer(1, 0.1 * inch))
+def add_distribution_section(story, image_dir, prefix, mer, styles, percentile_low, percentile_high):
+    story.append(PageBreak())
     story.append(Paragraph(
-        f"<b>K={mer} empirical cumulative distribution (ECDF):</b> Measure of how many k-mers (and their cumulative probability) "
+        f"<b>K={mer} abundance shift (left):</b> density plot of log-fold change in k-mer representation between raw and assembled data. "
+        f"Peaks in change should roughly corroborate the sequencing coverage of the genome (eg.: a peak at -2 reflects k-mers with 1 assembly count for every 100 raw counts, meaning 100x coverage). "
+        f"Positive shifts indicate k-mers highly-represented in the assembly, while negative shifts indicate k-mers that are more "
+        f"poorly-represented in the assembly. This could suggest potentially collapsed or missing regions. K-mers in the bottom {percentile_low:.2f}% and top {percentile_high:.2f}% used in localization are separated by dashed lines.",
+        styles["Normal"]))
+    story.append(Paragraph(
+        f"<b>K={mer} empirical cumulative distribution (ECDF) (right):</b> Measure of how many k-mers (and their cumulative probability) "
         f"are observed at each sequential log-fold change in frequency. "
         f"The ECDF helps identify the proportion of k-mers that fall within certain shift ranges, "
         f"providing a quantitative measure of assembly completeness and consistency.",
         styles["Normal"]))
+    paths = [
+        os.path.join(image_dir, f"{prefix}_kmer_comp_k{mer}_density.png"),
+        os.path.join(image_dir, f"{prefix}_kmer_comp_k{mer}_ecdf.png")
+    ]
+    add_image_row(story, paths, [3.75 * inch] * 2, [4.5 * inch] * 2, styles)
+    story.append(Spacer(1, 0.1 * inch))
 
-    ecdf_path = os.path.join(image_dir, f"{prefix}_kmer_comp_k{mer}_ecdf.png")
-    add_safe_image(story, ecdf_path, 6 * inch, 3 * inch, styles)
+
 
 ### Adds the sequence-specific breakdown pages.
 def add_sequence_breakdown_section(story, image_dir, prefix, mer, sequence_names, max_output, ngaps, bins, styles, spectra_dir=None, canonical=False, percentile_low=5, percentile_high=5):
@@ -174,7 +180,7 @@ def add_sequence_breakdown_section(story, image_dir, prefix, mer, sequence_names
 
     if len(sequence_names) > max_output:
         logging.warning(f"Too many contigs ({len(sequence_names)}) to tabulate. Only the first {max_output} will be output.")
-        paragraph_text += f" There were too many sequences to reliably construct the report. Only the first {max_output} alphabetically are reported here. Rerun with '--max-out {len(sequence_names)} or find images in the output directory."
+        paragraph_text += f" There were too many sequences to reliably construct the report. Only the first {max_output} alphabetically are reported here. Rerun pdrReport.py with '--max-out {len(sequence_names)} or find images in the output directory."
 
     story.append(Paragraph(paragraph_text, styles["Normal"]))
     story.append(Spacer(1, 0.5 * inch))
@@ -257,13 +263,13 @@ def make_report(output_pdf, image_dir, mer, prefix, bins=False, ngaps=False, max
 
     # Introduction
     intro_text = ("<b>Spectra pipeline output report:</b> The following figures were auto-generated by the Spectra pipeline. "
-                  "These figures show the relationship between k-mers in raw sequence data and in a genome assembly. "
-                  "These figures were generated with a random sampling of k-mers.")
+                  "These figures show the relationship between k-mers in raw sequence data and in a genome assembly.")
     story.append(Paragraph(intro_text, styles["Normal"]))
     story.append(Spacer(1, 0.1 * inch))
 
     # Sections
     add_kmer_distribution_section(story, image_dir, prefix, mer, styles, percentile_low=percentile_low, percentile_high=percentile_high)
+    add_distribution_section(story, image_dir, prefix, mer, styles, percentile_low=percentile_low, percentile_high=percentile_high)
     add_abundance_density_section(story, image_dir, prefix, mer, styles)
 
     sequence_names = get_sequence_names(image_dir, prefix)

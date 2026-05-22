@@ -72,7 +72,6 @@ def main():
     parser.add_argument('-m', '--mer-size', dest='mer_size', type=int, help='kmer size in query [default 20]', default=20)
     parser.add_argument('--percentile-low', dest='percentile_low', type=float, default=5, help='Bottom N percent of kmers to keep [default 5]')
     parser.add_argument('--percentile-high', dest='percentile_high', type=float, default=5, help='Top N percent of kmers to keep [default 5]')
-    parser.add_argument('-e', '--percentile-keep', type=int, dest='percentile_keep', default=None, help='Deprecated: use --percentile-low and --percentile-high instead')
     parser.add_argument('-k', '--chunk-size', dest='chunk_size', type=int, help='Max chunk size to work on [default 30000000]', default=30000000)
     parser.add_argument('-t', '--threads', type=int, default=1, help='Number of threads for parallel processing [default 1]')
     parser.add_argument('--minimum-size', dest='minimum_size', type=int, help='Minimum sequence size to include.', default=15000)
@@ -97,10 +96,6 @@ def main():
     # If input chunksize and window size are not compatible, lower chunksize to the next compatible length
     if args.chunk_size % args.width != 0:
         args.chunk_size -= args.chunk_size % args.width
-
-    if args.percentile_keep is not None:
-        args.percentile_low = args.percentile_keep
-        args.percentile_high = args.percentile_keep
 
     # Count total kmers
     logger.info("Processing query file...")
