@@ -19,8 +19,8 @@ parser.add_argument("-f", "--output_format", type=str, default="png", help="Outp
 parser.add_argument("-s", "--plot_sample", type=int, default=1000000, help="Number of kmers to sample for plots")
 parser.add_argument("--percentile-low", dest='percentile_low', type=float, default=1, help="Bottom N percent of kmers for extreme scatter plot [default 1]")
 parser.add_argument("--percentile-high", dest='percentile_high', type=float, default=1, help="Top N percent of kmers for extreme scatter plot [default 1]")
-parser.add_argument("--auto", action='store_true', help='Automatically determine low/high percentiles based on distribution')
-parser.add_argument("-p", "--percentile", type=float, default=None, help="Deprecated: use --percentile-low and --percentile-high instead")
+parser.add_argument("--auto", dest='auto', action='store_true', help='Automatically determine low/high percentiles based on distribution')
+parser.add_argument("--auto-std", dest="std", type=int, default=1, help='Standard deviation degrees of freedom for automatic percentiles [default 1]')
 parser.add_argument('-v', '--verbose', dest='verbose', action='store_true', help='Verbose mode', default=False)
 
 args = parser.parse_args()
@@ -94,7 +94,7 @@ if args.percentile is not None:
 
 if args.auto:
     mu = df["reduction"].mean()
-    sigma = df["reduction"].std()
+    sigma = df["reduction"].std(ddof=args.std)
     low_thresh = mu - 2 * sigma
     high_thresh = mu + 2 * sigma
 
