@@ -100,7 +100,7 @@ def main():
         f.write("#####\n\n")
 
         # If variables required, define variables from argument parser.
-        variable_names = ["output", "prefix", "threads", "mer_size", "minimum_size", "jf_bloom", "jf_path", "python", "rscript", "sample_size", "chunk_size", "percentile", "raw_min", "asm_min", "mq_window", "spectra_window", "assembled", "meryl_path", "meryl_memory", "counter", "max_output", "bin_penalty", "bin_size"]
+        variable_names = ["output", "prefix", "threads", "mer_size", "minimum_size", "jf_bloom", "jf_path", "python", "rscript", "sample_size", "chunk_size", "raw_min", "asm_min", "mq_window", "spectra_window", "assembled", "meryl_path", "meryl_memory", "counter", "max_output", "bin_penalty", "bin_size"]
 
         if args.variable:
             variables = {name: f'"${{{name}}}"' for name in variable_names}
@@ -218,7 +218,7 @@ def main():
         if args.time:
             f.write(f"echo 'Starting k-mer comparison and ranking at:'\ndate\n")
 
-        kmer_comp_cmd = f"{variables['python']} {shlex.quote(spectra_path + '/scripts/utils/kmerComp.py')} -r {variables['prefix']}_raw.kdump -a {variables['prefix']}_asm.kdump -k {variables['mer_size']} -o {variables['prefix']}/{variables['prefix']}_kmer_comp -s {variables['sample_size']} --percentile-low {low} --percentile-high {high}"
+        kmer_comp_cmd = f"{variables['python']} {shlex.quote(spectra_path + '/scripts/utils/kmerComp.py')} -r {variables['prefix']}_raw.kdump -a {variables['prefix']}_asm.kdump -k {variables['mer_size']} -o {variables['prefix']}/{variables['prefix']}_kmer_comp -s {variables['sample_size']} --percentile-low {args.percentile_low} --percentile-high {args.percentile_high}"
         if args.auto_percentile:
             kmer_comp_cmd += " --auto"
         kmer_comp_cmd += " -v"
