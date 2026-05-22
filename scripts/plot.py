@@ -127,8 +127,8 @@ def plot_spectra(df, output_path, sequence, x_min, x_max, show_axes=True, freque
 def plot_mass(df, output_prefix, sequence, x_min, x_max, show_axes=True, y_max=None):
     df = df.sort_values(['Start', 'Bin'])
     bins = sorted(df['Bin'].unique())
-    low_bins = [b for b in bins if b == "low"]
-    high_bins = [b for b in bins if b == "high"]
+    low_bins = [b for b in bins if b == "low" or (str(b).startswith('pct') and int(str(b).replace('pct', '')) <= 50)]
+    high_bins = [b for b in bins if b == "high" or (str(b).startswith('pct') and int(str(b).replace('pct', '')) > 50)]
 
     all_starts = sorted(df['Start'].unique())
     midpoints = []
@@ -268,8 +268,8 @@ def execute(args):
     if is_mass:
         # Calculate global y_max for consistent scaling across sequences
         bins = df['Bin'].unique()
-        low_bins = [b for b in bins if b == "low"]
-        high_bins = [b for b in bins if b == "high"]
+        low_bins = [b for b in bins if b == "low" or (str(b).startswith('pct') and int(str(b).replace('pct', '')) <= 50)]
+        high_bins = [b for b in bins if b == "high" or (str(b).startswith('pct') and int(str(b).replace('pct', '')) > 50)]
 
         max_low = 0
         if low_bins:
@@ -299,3 +299,19 @@ def execute(args):
             if hasattr(args, 'gff_file') and args.gff_file:
                 gff_tracks = args.gff_tracks.split(',') if args.gff_tracks else None
                 plot_gff(args.gff_file, f"{args.output}_gff_{seq}.png", seq, x_min, x_max, tracks=gff_tracks)
+
+if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-i', '--input', dest='input_tsv', required=True)
+    parser.add_argument('-o', '--output', dest='output', required=True)
+    parser.add_argument('-s', '--sequence', dest='sequence')
+    parser.add_argument('-a', '--axes', action='store_true', default=False)
+    parser.add_argument('-f', '--freq', dest='frequencies', action='store_true', default=False)
+    parser.add_argument('--gff-file', dest='gff_file')
+    parser.add_argument('--gff-tracks', dest='gff_tracks')
+    parser.add_argument('--ngaps', dest='ngaps')
+    parser.add_argument('-v', '--verbose', action='store_true')
+    args = parser.parse_args()
+
+    execute(args)

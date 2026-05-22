@@ -226,6 +226,18 @@ def main():
             kmer_comp_cmd += " --auto"
         kmer_comp_cmd += " -v"
         f.write(kmer_comp_cmd + "\n")
+
+        if args.auto_percentile:
+            f.write(f"if [ -f {variables['prefix']}/{variables['prefix']}_kmer_comp_percentiles.txt ]; then\n")
+            f.write(f"    source {variables['prefix']}/{variables['prefix']}_kmer_comp_percentiles.txt\n")
+            f.write(f"else\n")
+            f.write(f"    PERCENTILE_LOW={args.percentile_low}\n")
+            f.write(f"    PERCENTILE_HIGH={args.percentile_high}\n")
+            f.write(f"fi\n")
+        else:
+            f.write(f"PERCENTILE_LOW={low}\n")
+            f.write(f"PERCENTILE_HIGH={high}\n")
+
         f.write(f"{variables['python']} {shlex.quote(spectra_path + '/scripts/utils/kmerRank.py')} -r {variables['prefix']}_raw.kdump -a {variables['prefix']}_asm.kdump -o {variables['prefix']}_kmer_rank.tsv -c {variables['chunk_size']} -v\n")
         if args.time:
             f.write(f"echo 'Ending k-mer comparison and ranking at:'\ndate\n\n")
@@ -240,10 +252,7 @@ def main():
         if args.time:
             f.write(f'echo "Starting {variables["mer_size"]}-mer localization at:"\ndate\n')
 
-        mass_query_cmd = f"{variables['python']} {shlex.quote(spectra_path + '/scripts/utils/mass-query.py')} -i {variables['assembled']} -q {variables['prefix']}_kmer_rank.tsv -m {variables['mer_size']} -o {variables['prefix']}_mass_query.tsv -c -w {variables['mq_window']} -t {variables['threads']} -s {variables['mq_window']} --minimum-size {variables['minimum_size']}"
-        low = args.percentile if args.percentile is not None else args.percentile_low
-        high = args.percentile if args.percentile is not None else args.percentile_high
-        mass_query_cmd += f" --percentile-low {low} --percentile-high {high}"
+        mass_query_cmd = f"{variables['python']} {shlex.quote(spectra_path + '/scripts/utils/mass-query.py')} -i {variables['assembled']} -q {variables['prefix']}_kmer_rank.tsv -m {variables['mer_size']} -o {variables['prefix']}_mass_query.tsv -c -w {variables['mq_window']} -t {variables['threads']} -s {variables['mq_window']} --minimum-size {variables['minimum_size']} --percentile-low $PERCENTILE_LOW --percentile-high $PERCENTILE_HIGH"
 
         f.write(mass_query_cmd + "\n")
         f.write(f"{variables['python']} {shlex.quote(spectra_path + '/spectra.py')} plot -i {variables['prefix']}_mass_query.tsv -o {variables['prefix']}/{variables['prefix']}_mass -a\n")
@@ -296,16 +305,8 @@ def main():
         pdf_report_cmd = (f"{variables['python']} {shlex.quote(spectra_path + '/scripts/utils/pdfReport.py')} "
                           f"-i {variables['prefix']} -o {variables['prefix']}_report.pdf -m {variables['mer_size']} "
                           f"-p {variables['prefix']} --max-output {variables['max_output']}{' -b' if args.bins else ''} "
-                          f"{'--canonical ' if args.canonical else ''}")
-
-        if args.auto_percentile:
-            # We don't know the exact percentiles until mass-query runs, but pdfReport can be updated to handle this
-            # For now, let's pass a flag if we want pdfReport to try and find them or just use defaults
-            pass
-        else:
-            low = args.percentile if args.percentile is not None else args.percentile_low
-            high = args.percentile if args.percentile is not None else args.percentile_high
-            pdf_report_cmd += f" --percentile-low {low} --percentile-high {high}"
+                          f"{'--canonical ' if args.canonical else ''}"
+                          f" --percentile-low $PERCENTILE_LOW --percentile-high $PERCENTILE_HIGH")
 
         pdf_report_cmd += f" -r {raw_files_str} -a {variables['assembled']} -c {variables['counter']} -s {shlex.quote(spectra_path)}"
 

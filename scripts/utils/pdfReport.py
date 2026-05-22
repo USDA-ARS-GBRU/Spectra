@@ -93,7 +93,7 @@ def add_image_row(story, paths, widths, heights, styles):
 def get_sequence_names(image_dir, prefix):
 
     # Pattern: {prefix}_spectra_{sequence}.png, excluding spectra_gff
-    pattern = re.compile(rf"^{re.escape(prefix)}_spectra_standard_(.+)\.png$")
+    pattern = re.compile(rf"^{re.escape(prefix)}_spectra_(.+)\.png$")
     sequences = []
     for f in os.listdir(image_dir):
         match = pattern.match(f)
@@ -248,23 +248,13 @@ def add_sequence_breakdown_section(story, image_dir, prefix, mer, sequence_names
 def make_report(output_pdf, image_dir, mer, prefix, bins=False, ngaps=False, max_output=50, percentile=None, percentile_low=None, percentile_high=None,
                 raw_files=None, assembly_file=None, counter=None, spectra_dir=None, canonical=False):
 
-    # Try to load auto-percentiles from metrics file if not provided
-    if percentile_low is None or percentile_high is None:
-        metrics_path = os.path.join(os.path.dirname(image_dir), f"{prefix}_mass_query_metrics.tsv")
-        if os.path.exists(metrics_path):
-            try:
-                with open(metrics_path, 'r') as f:
-                    for line in f:
-                        if line.startswith("# Low_Percentile_Threshold:"):
-                            percentile_low = float(line.split(":")[1].strip())
-                        elif line.startswith("# High_Percentile_Threshold:"):
-                            percentile_high = float(line.split(":")[1].strip())
-            except Exception:
-                pass
+    # Explicit thresholds are now passed from preparePipeline, or use defaults
+    if percentile is not None:
+        percentile_low = percentile
+        percentile_high = percentile
 
-    # Defaults if still None
-    if percentile_low is None: percentile_low = percentile if percentile is not None else 5
-    if percentile_high is None: percentile_high = percentile if percentile is not None else 5
+    if percentile_low is None: percentile_low = 5
+    if percentile_high is None: percentile_high = percentile_low
 
     doc = SimpleDocTemplate(output_pdf, pagesize=letter)
     doc.title = f'Spectra output report: {prefix}'
@@ -306,8 +296,8 @@ def main():
     parser.add_argument('--canonical', dest='canonical', action='store_true', help='Canonical spectra was generated', default=False)
     parser.add_argument('-p', '--prefix', dest='prefix', type=str, required=True)
     parser.add_argument('-e', '--percentile', dest='percentile', type=float, default=None)
-    parser.add_argument('--percentile-low', dest='percentile_low', type=float, default=5)
-    parser.add_argument('--percentile-high', dest='percentile_high', type=float, default=5)
+    parser.add_argument('--percentile-low', dest='percentile_low', type=float, default=None)
+    parser.add_argument('--percentile-high', dest='percentile_high', type=float, default=None)
     parser.add_argument('-x', '--max-output', dest='to_output', type=int, help='Contigs to include individual plots for, taken alphabetically.', default=50)
     parser.add_argument('-r', '--raw', dest='raw', nargs='+', help='Input raw fasta/fastq read file(s).', default=None)
     parser.add_argument('-a', '--assembled', dest='assembled', help='Input fasta assembly file.', default=None)
