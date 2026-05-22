@@ -10,14 +10,17 @@ import logging
 from scipy.stats import gaussian_kde
 
 # CLI arguments
-parser = argparse.ArgumentParser(description="Streamed comparison of raw vs assembly jellyfish dump files")
-parser.add_argument("-r", "--raw_dump", type=str, required=True, help="Raw jellyfish dump file")
-parser.add_argument("-a", "--asm_dump", type=str, required=True, help="Assembly jellyfish dump file")
+parser = argparse.ArgumentParser(description="Streamed comparison of raw vs assembly k-mer dump files")
+parser.add_argument("-r", "--raw_dump", type=str, required=True, help="Raw k-mer dump file")
+parser.add_argument("-a", "--asm_dump", type=str, required=True, help="Assembly k-mer dump file")
 parser.add_argument("-k", "--kmer_size", type=int, default=20, help="K-mer size [default 20]")
 parser.add_argument("-o", "--output_prefix", type=str, default="kmerComp_output", help="Output prefix")
 parser.add_argument("-f", "--output_format", type=str, default="png", help="Output image format [default png]")
 parser.add_argument("-s", "--plot_sample", type=int, default=1000000, help="Number of kmers to sample for plots")
-parser.add_argument("-p", "--percentile", type=int, default=1, help="Percentile cutoff for extreme kmers")
+parser.add_argument("--percentile-low", dest='percentile_low', type=float, default=1, help="Bottom N percent of kmers for extreme scatter plot [default 1]")
+parser.add_argument("--percentile-high", dest='percentile_high', type=float, default=1, help="Top N percent of kmers for extreme scatter plot [default 1]")
+parser.add_argument("--auto", action='store_true', help='Automatically determine low/high percentiles based on distribution')
+parser.add_argument("-p", "--percentile", type=float, default=None, help="Deprecated: use --percentile-low and --percentile-high instead")
 parser.add_argument('-v', '--verbose', dest='verbose', action='store_true', help='Verbose mode', default=False)
 
 args = parser.parse_args()
@@ -85,13 +88,41 @@ df["logAsm"] = np.log10(df["AsmCount"] + 1)
 df["reduction"] = df["logAsm"] - df["logRaw"]
 df["reductionRank"] = df["reduction"].rank(method="first")
 
-# Percentile filtering on sample
-p_val = args.percentile / 100.0
-n_rows = len(df)
-low_cut = int(math.ceil(n_rows * p_val))
-high_cut = int(math.floor(n_rows * (1 - p_val)))
-df_sorted = df.sort_values("reductionRank")
-df_extreme = pd.concat([df_sorted.iloc[:low_cut], df_sorted.iloc[high_cut:]])
+if args.percentile is not None:
+    args.percentile_low = args.percentile
+    args.percentile_high = args.percentile
+
+if args.auto:
+    mu = df["reduction"].mean()
+    sigma = df["reduction"].std()
+    low_thresh = mu - 2 * sigma
+    high_thresh = mu + 2 * sigma
+
+    df_sorted = df.sort_values("reduction")
+    low_cut_idx = df_sorted["reduction"].searchsorted(low_thresh, side='right')
+    high_cut_idx = df_sorted["reduction"].searchsorted(high_thresh, side='left')
+
+    args.percentile_low = (low_cut_idx / len(df)) * 100
+    args.percentile_high = ((len(df) - high_cut_idx) / len(df)) * 100
+
+    df_extreme = pd.concat([df_sorted.iloc[:low_cut_idx], df_sorted.iloc[high_cut_idx:]])
+    logger.info(f"Auto-detected thresholds for sample: low={args.percentile_low:.2f}%, high={args.percentile_high:.2f}%")
+    # Persist auto-calculated percentiles
+    percentiles_file = f"{args.output_prefix}_percentiles.txt"
+    try:
+        with open(percentiles_file, 'w') as f:
+            f.write(f"PERCENTILE_LOW={args.percentile_low:.4f}\n")
+            f.write(f"PERCENTILE_HIGH={args.percentile_high:.4f}\n")
+        logger.info(f"Saved auto-percentiles to {percentiles_file}")
+    except Exception as e:
+        logger.error(f"Failed to save percentiles file: {e}")
+else:
+    # Percentile filtering on sample
+    n_rows = len(df)
+    low_cut = int(math.ceil(n_rows * (args.percentile_low / 100.0)))
+    high_cut = int(math.floor(n_rows * (1 - args.percentile_high / 100.0)))
+    df_sorted = df.sort_values("reductionRank")
+    df_extreme = pd.concat([df_sorted.iloc[:low_cut], df_sorted.iloc[high_cut:]])
 
 xmin = df_sorted["RawCount"].min()
 xmax = df_sorted["RawCount"].max()
@@ -154,9 +185,10 @@ if not df_extreme.empty:
     plt.ylim(ymin, ymax)
     plt.xlabel("Kmers in raw data")
     plt.ylabel("Kmers in assembly")
-    plt.title(f"K={args.kmer_size} extreme kmers (±{args.percentile}%)")
+    plt.title(f"K={args.kmer_size} extreme kmers (Low {args.percentile_low}%, High {args.percentile_high}%)")
     plt.colorbar(label="Log-fold change")
-    plt.savefig(f"{args.output_prefix}_k{args.kmer_size}_scatter_extreme_{args.percentile}pct.{args.output_format}", dpi=200)
+    # For compatibility with pdfReport, we keep a generic name if they are equal, or use a new naming scheme
+    plt.savefig(f"{args.output_prefix}_k{args.kmer_size}_scatter_extreme.{args.output_format}", dpi=200)
     plt.close()
 
 # ECDF
