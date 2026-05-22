@@ -107,6 +107,15 @@ if args.auto:
 
     df_extreme = pd.concat([df_sorted.iloc[:low_cut_idx], df_sorted.iloc[high_cut_idx:]])
     logger.info(f"Auto-detected thresholds for sample: low={args.percentile_low:.2f}%, high={args.percentile_high:.2f}%")
+    # Persist auto-calculated percentiles
+    percentiles_file = f"{args.output_prefix}_percentiles.txt"
+    try:
+        with open(percentiles_file, 'w') as f:
+            f.write(f"PERCENTILE_LOW={args.percentile_low:.4f}\n")
+            f.write(f"PERCENTILE_HIGH={args.percentile_high:.4f}\n")
+        logger.info(f"Saved auto-percentiles to {percentiles_file}")
+    except Exception as e:
+        logger.error(f"Failed to save percentiles file: {e}")
 else:
     # Percentile filtering on sample
     n_rows = len(df)
