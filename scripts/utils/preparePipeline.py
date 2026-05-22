@@ -249,11 +249,6 @@ def main():
         if args.time:
             f.write(f'echo "Starting {variables["mer_size"]}-mer localization at:"\ndate\n')
 
-        mass_query_cmd = f"{variables['python']} {shlex.quote(spectra_path + '/scripts/utils/mass-query.py')} -i {variables['assembled']} -q {variables['prefix']}_kmer_rank.tsv -m {variables['mer_size']} -o {variables['prefix']}_mass_query.tsv -c -w {variables['mq_window']} -t {variables['threads']} -s {variables['mq_window']} --minimum-size {variables['minimum_size']}"
-        low = args.percentile if args.percentile is not None else args.percentile_low
-        high = args.percentile if args.percentile is not None else args.percentile_high
-        mass_query_cmd += f" --percentile-low {low} --percentile-high {high}"
-
         mass_query_cmd = f"{variables['python']} {shlex.quote(spectra_path + '/scripts/utils/mass-query.py')} -i {variables['assembled']} -q {variables['prefix']}_kmer_rank.tsv -m {variables['mer_size']} -o {variables['prefix']}_mass_query.tsv -c -w {variables['mq_window']} -t {variables['threads']} -s {variables['mq_window']} --minimum-size {variables['minimum_size']} --percentile-low $PERCENTILE_LOW --percentile-high $PERCENTILE_HIGH"
 
         f.write(mass_query_cmd + "\n")
