@@ -49,6 +49,7 @@ def main():
     parser.add_argument('--percentile-low', dest='percentile_low', type=float, default=5, help='Bottom N percent of kmers to keep [default 5]')
     parser.add_argument('--percentile-high', dest='percentile_high', type=float, default=5, help='Top N percent of kmers to keep [default 5]')
     parser.add_argument('--auto-percentile', dest='auto_percentile', action='store_true', default=False, help='Automatically determine low/high percentiles based on distribution')
+    parser.add_argument('--auto-std', dest='auto_std', type=int, default=1, help='Standard deviation cutoff for low/high [default 1]')
     parser.add_argument('--raw-min', dest='raw_min', type=int, default=100, help='Jellyfish2 raw kmer minimum count to retain [default 100]')
     parser.add_argument('--asm-min', dest='asm_min', type=int, default=2, help='Jellyfish2 assembly kmer minimum count to retain [default 2]')
     parser.add_argument('--mq-window', dest='mq_window', type=int, default=200000, help='Window and spacing width for kmer mass-query.py localization [default 200,000 bp]')
@@ -220,7 +221,7 @@ def main():
 
         kmer_comp_cmd = f"{variables['python']} {shlex.quote(spectra_path + '/scripts/utils/kmerComp.py')} -r {variables['prefix']}_raw.kdump -a {variables['prefix']}_asm.kdump -k {variables['mer_size']} -o {variables['prefix']}/{variables['prefix']}_kmer_comp -s {variables['sample_size']} --percentile-low {args.percentile_low} --percentile-high {args.percentile_high}"
         if args.auto_percentile:
-            kmer_comp_cmd += " --auto"
+            kmer_comp_cmd += f" --auto --auto-std {args.auto_std}"
         kmer_comp_cmd += " -v"
         f.write(kmer_comp_cmd + "\n")
 
