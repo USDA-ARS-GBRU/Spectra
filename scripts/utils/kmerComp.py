@@ -188,8 +188,7 @@ if not df_extreme.empty:
     plt.title(f"K={args.kmer_size} extreme kmers (Low {args.percentile_low}%, High {args.percentile_high}%)")
     plt.colorbar(label="Log-fold change")
     # For compatibility with pdfReport, we keep a generic name if they are equal, or use a new naming scheme
-    suffix = f"{args.percentile_low}pct" if args.percentile_low == args.percentile_high else f"L{args.percentile_low}_H{args.percentile_high}pct"
-    plt.savefig(f"{args.output_prefix}_k{args.kmer_size}_scatter_extreme_{suffix}.{args.output_format}", dpi=200)
+    plt.savefig(f"{args.output_prefix}_k{args.kmer_size}_scatter_extreme.{args.output_format}", dpi=200)
     plt.close()
 
 # ECDF

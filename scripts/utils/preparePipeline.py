@@ -225,8 +225,8 @@ def main():
         f.write(kmer_comp_cmd + "\n")
 
         if args.auto_percentile:
-            f.write(f"if [ -f {variables['prefix']}/{variables['prefix']}_percentiles.txt ]; then\n")
-            f.write(f"    source {variables['prefix']}/{variables['prefix']}_percentiles.txt\n")
+            f.write(f"if [ -f {variables['prefix']}/{variables['prefix']}_kmer_comp_percentiles.txt ]; then\n")
+            f.write(f"    source {variables['prefix']}/{variables['prefix']}_kmer_comp_percentiles.txt\n")
             f.write(f"else\n")
             f.write(f"    PERCENTILE_LOW={args.percentile_low}\n")
             f.write(f"    PERCENTILE_HIGH={args.percentile_high}\n")

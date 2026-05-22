@@ -105,7 +105,6 @@ def get_sequence_names(image_dir, prefix):
 
 ### Adds the K-mer distribution plots section.
 def add_kmer_distribution_section(story, image_dir, prefix, mer, styles, percentile_low, percentile_high):
-
     story.append(Paragraph(
         f"<b>K={mer} distributions:</b> K-mer prevalence (left) in raw data [x-axis, log-scale] against prevalence in assembled data [y-axis, log-scale]. "
         f"K-mer prevalence (right) when filtered for the bottom {percentile_low:.2f}% and top {percentile_high:.2f}% of k-mers by shift in abundance between datasets. "
@@ -113,10 +112,9 @@ def add_kmer_distribution_section(story, image_dir, prefix, mer, styles, percent
         f"Ideally, k-mers should cluster along the diagonal, with peaks representing the expected sequencing coverage.",
         styles["Normal"]))
 
-    extreme_suffix = f"{percentile_low}pct" if percentile_low == percentile_high else f"L{percentile_low}_H{percentile_high}pct"
     paths = [
         os.path.join(image_dir, f"{prefix}_kmer_comp_k{mer}_scatter.png"),
-        os.path.join(image_dir, f"{prefix}_kmer_comp_k{mer}_scatter_extreme_{extreme_suffix}.png")
+        os.path.join(image_dir, f"{prefix}_kmer_comp_k{mer}_scatter_extreme.png")
     ]
     add_image_row(story, paths, [3.75 * inch] * 2, [4.5 * inch] * 2, styles)
 
