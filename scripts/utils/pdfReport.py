@@ -233,16 +233,6 @@ def add_sequence_breakdown_section(story, image_dir, prefix, mer, sequence_names
             canon_path = os.path.join(image_dir, f"{prefix}_spectra_canonical_{sequence}.png")
             add_safe_image(story, canon_path, 6.5 * inch, 4 * inch, styles, spacer=0)
 
-            # 5. Bins for canonical spectra
-            if bins:
-                canon_gff_path = os.path.join(image_dir, f"{prefix}_spectra_canonical_gff_{sequence}.png")
-                if os.path.exists(canon_gff_path):
-                    img = image_prep(canon_gff_path, 6.5 * inch, 4 * inch)
-                    if img:
-                        story.append(img)
-                else:
-                    story.append(Paragraph(f"<b>ERROR:</b> Could not find file {os.path.basename(canon_gff_path)}.", styles["Normal"]))
-
         # 6. Low abundance plot
         story.append(Spacer(1, 0.1 * inch))
         low_path = os.path.join(image_dir, f"{prefix}_mass_{sequence}_low.png")

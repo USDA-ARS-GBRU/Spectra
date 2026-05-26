@@ -282,9 +282,6 @@ def main():
         if args.canonical:
             f.write(f"{variables['python']} {shlex.quote(spectra_path + '/spectra.py')} count -c -w {variables['spectra_window']} -s {variables['spectra_window']} -i {variables['assembled']} -o {variables['prefix']}_spectra_canonical.tsv --minimum-size {variables['minimum_size']} -t {variables['threads']} -v\n")
             spectra_string_canon = f"{variables['python']} {shlex.quote(spectra_path + '/spectra.py')} plot -i {variables['prefix']}_spectra_canonical.tsv -o {variables['prefix']}/{variables['prefix']}_spectra_canonical"
-            if args.bins:
-                f.write(f"{variables['python']} {shlex.quote(spectra_path + '/spectra.py')} analyze -i {variables['prefix']}_spectra_canonical.tsv -o {variables['prefix']}_spectra_canonical -p {variables['bin_penalty']} -s {variables['bin_size']} -v\n")
-                spectra_string_canon += f" --gff-file={variables['prefix']}_spectra_canonical_bins.gff --gff-tracks=bin-region"
             if args.ngaps:
                 spectra_string_canon += f" --ngaps={variables['prefix']}_ngaps.gff"
             f.write(spectra_string_canon + "\n")
