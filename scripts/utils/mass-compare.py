@@ -77,42 +77,6 @@ def calculate_near_coincidence(df, threshold, range_n):
 
     return global_results, results_per_seq
 
-def plot_mirrored_histogram(df, output_prefix):
-    fig, ax = plt.subplots(figsize=(10, 6))
-
-    max_count = max(df['high'].max(), df['low'].max())
-    bins = np.linspace(0, max_count, 50)
-
-    ax.hist(df['high'], bins=bins, color='red', alpha=0.7, label='High Counts')
-    ax.hist(df['low'], bins=bins, color='blue', alpha=0.7, label='Low Counts', weights=-np.ones_like(df['low']))
-
-    ax.axhline(0, color='black', linewidth=1)
-    ax.set_xlabel('Extreme Kmer Count per Window')
-    ax.set_ylabel('Frequency (Windows)')
-    ax.set_title('Mirrored Histogram of High and Low Extreme Kmer Counts')
-
-    # Fix y-axis labels to be positive on both sides
-    ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, pos: f"{abs(int(x))}"))
-
-    ax.legend()
-    plt.tight_layout()
-    plt.savefig(f"{output_prefix}_mirrored_hist.png", dpi=300)
-    plt.close()
-
-def plot_diff_histogram(df, output_prefix):
-    fig, ax = plt.subplots(figsize=(10, 6))
-    diff = df['high'] - df['low']
-
-    ax.hist(diff, bins=50, color='purple', alpha=0.7)
-    ax.axvline(0, color='black', linestyle='--')
-    ax.set_xlabel('Difference (High - Low Count)')
-    ax.set_ylabel('Frequency (Windows)')
-    ax.set_title('Histogram of High - Low Count Differences')
-
-    plt.tight_layout()
-    plt.savefig(f"{output_prefix}_diff_hist.png", dpi=300)
-    plt.close()
-
 def plot_scatter(df, output_prefix):
     fig, ax = plt.subplots(figsize=(8, 8))
     ax.scatter(df['low'], df['high'], alpha=0.5, s=10)
@@ -128,48 +92,6 @@ def plot_scatter(df, output_prefix):
 
     plt.tight_layout()
     plt.savefig(f"{output_prefix}_scatter.png", dpi=300)
-    plt.close()
-
-def plot_cdf(df, output_prefix):
-    fig, ax = plt.subplots(figsize=(10, 6))
-
-    for col, color, label in [('high', 'red', 'High'), ('low', 'blue', 'Low')]:
-        sorted_data = np.sort(df[col])
-        yvals = np.arange(len(sorted_data)) / float(len(sorted_data) - 1)
-        ax.plot(sorted_data, yvals, color=color, label=label)
-
-    ax.set_xlabel('Extreme Kmer Count')
-    ax.set_ylabel('Cumulative Probability')
-    ax.set_title('CDF of High and Low Extreme Kmer Counts')
-    ax.legend()
-
-    plt.tight_layout()
-    plt.savefig(f"{output_prefix}_cdf.png", dpi=300)
-    plt.close()
-
-def plot_coincidence_decay(df, threshold, output_prefix, max_range=10):
-    ranges = np.arange(max_range + 1)
-    h_near_l_vals = []
-    l_near_h_vals = []
-
-    for r in ranges:
-        global_res, _ = calculate_near_coincidence(df, threshold, r)
-        h_near_l_vals.append(global_res['h_near_l_frac'])
-        l_near_h_vals.append(global_res['l_near_h_frac'])
-
-    fig, ax = plt.subplots(figsize=(10, 6))
-    ax.plot(ranges, h_near_l_vals, 'r-o', label='High windows with Low near')
-    ax.plot(ranges, l_near_h_vals, 'b-o', label='Low windows with High near')
-
-    ax.set_xlabel('Neighbor Range (N windows)')
-    ax.set_ylabel('Coincidence Fraction')
-    ax.set_title(f'Coincidence Decay (Threshold > {threshold})')
-    ax.set_xticks(ranges)
-    ax.grid(True, linestyle='--', alpha=0.6)
-    ax.legend()
-
-    plt.tight_layout()
-    plt.savefig(f"{output_prefix}_coincidence_decay.png", dpi=300)
     plt.close()
 
 def main():
@@ -253,11 +175,7 @@ def main():
     logger.info(f"Statistics written to {stats_file}")
 
     # Plotting
-    plot_mirrored_histogram(pivot_df, args.output)
-    plot_diff_histogram(pivot_df, args.output)
     plot_scatter(pivot_df, args.output)
-    plot_cdf(pivot_df, args.output)
-    plot_coincidence_decay(pivot_df, args.jaccard_minimum, args.output)
 
     logger.info(f"Plots generated with prefix {args.output}")
 
