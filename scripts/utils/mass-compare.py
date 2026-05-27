@@ -120,8 +120,8 @@ def plot_scatter(df, output_prefix):
     # Add diagonal line
     max_val = max(df['high'].max(), df['low'].max())
     ax.plot([0, max_val], [0, max_val], 'r--', alpha=0.7)
-    plt.xscale("log")
-    plt.yscale("log")
+#    plt.xscale("log")
+#    plt.yscale("log")
     ax.set_xlabel('Low Extreme Kmer Count')
     ax.set_ylabel('High Extreme Kmer Count')
     ax.set_title('Scatter Plot: High vs Low Extreme Kmer Counts')
