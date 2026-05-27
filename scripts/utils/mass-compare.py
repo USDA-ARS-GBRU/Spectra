@@ -33,26 +33,6 @@ def plot_scatter(df, output_prefix):
     plt.tight_layout()
     plt.savefig(f"{output_prefix}_scatter.png", dpi=300)
     plt.close()
-
-def plot_asymmetry_v_length(df_seq_stats, output_prefix):
-    fig, ax = plt.subplots(figsize=(10, 6))
-
-    # Using log scale for length if needed, but let's start with linear
-    ax.scatter(df_seq_stats['Length'], df_seq_stats['Asymmetry_Index'], alpha=0.7, color='green')
-
-    ax.axhline(0, color='black', linestyle='--', alpha=0.5)
-    ax.set_xlabel('Sequence Length (bp)')
-    ax.set_ylabel('Asymmetry Index')
-    ax.set_title('Sequence Asymmetry Index vs Length')
-
-    # Handle potentially large lengths with scientific notation
-    ax.xaxis.set_major_formatter(plt.ScalarFormatter(useMathText=True))
-    ax.ticklabel_format(style='sci', axis='x', scilimits=(0,0))
-
-    plt.tight_layout()
-    plt.savefig(f"{output_prefix}_asymmetry_v_length.png", dpi=300)
-    plt.close()
-
 def main():
     parser = argparse.ArgumentParser(description="Kmer Mass Compare: Compare extreme kmer accumulations across genome windows")
     parser.add_argument('-i', '--input', required=True, help='Input TSV from mass-query.py')
@@ -126,8 +106,6 @@ def main():
 
     # Plotting
     plot_scatter(pivot_df, args.output)
-    plot_asymmetry_v_length(df_seq_stats, args.output)
-
     logger.info(f"Plots generated with prefix {args.output}")
 
 if __name__ == "__main__":
