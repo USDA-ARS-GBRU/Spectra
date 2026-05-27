@@ -224,6 +224,7 @@ def main():
 
         seq_stats.append({
             'Sequence': seq,
+            'Length': s_len,
             'Total_High': s_high,
             'Total_Low': s_low,
             'Asymmetry_Index': s_asym,
