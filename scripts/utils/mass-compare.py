@@ -6,6 +6,7 @@ import numpy as np
 from scipy.stats import pearsonr
 import os
 import logging
+from matplotlib.colors import LinearSegmentedColormap
 
 # Logging
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
@@ -18,16 +19,54 @@ def calculate_jaccard(df, threshold):
     union = np.logical_or(high_present, low_present).sum()
     return intersection / union if union > 0 else 0.0
 
-def plot_scatter(df, output_prefix):
-    fig, ax = plt.subplots(figsize=(8, 8))
-    ax.scatter(df['low'], df['high'], alpha=0.5, s=10)
-    max_val = max(df['high'].max(), df['low'].max())
-    ax.plot([0, max_val], [0, max_val], 'r--', alpha=0.7)
+def plot_scatter(win_df, output_prefix, end_threshold):
+    fig, ax = plt.subplots(figsize=(10, 10))
+
+    # Background windows (non-outliers)
+    bg = win_df[~win_df['IsOutlier']]
+    ax.scatter(bg['low'], bg['high'], alpha=0.3, s=10, color='blue', label='Background')
+
+    # Outliers
+    outliers = win_df[win_df['IsOutlier']]
+
+    if not outliers.empty:
+        if end_threshold > 0:
+            dists = np.clip(outliers['MinDist'], 0, end_threshold)
+            norm_dists = dists / end_threshold
+            colors = [(1, 0, 0), (1, 0.75, 0.8)] # Red to Pink
+            cm = LinearSegmentedColormap.from_list('outlier_cm', colors, N=100)
+            sc = ax.scatter(outliers['low'], outliers['high'], c=norm_dists, cmap=cm, s=15, alpha=0.8, label='Outliers', vmin=0, vmax=1)
+            cbar = plt.colorbar(sc, ax=ax)
+            cbar.set_label(f'Distance from Feature (0 to {end_threshold})')
+        else:
+            ax.scatter(outliers['low'], outliers['high'], alpha=0.8, s=15, color='red', label='Outliers (Dist 0)')
+
+    # Add diagonal line
+    max_val = max(win_df['high'].max(), win_df['low'].max())
+    ax.plot([0, max_val], [0, max_val], 'k--', alpha=0.5)
+
     ax.set_xlabel('Low Extreme Kmer Count')
     ax.set_ylabel('High Extreme Kmer Count')
-    ax.set_title('Scatter Plot: High vs Low Extreme Kmer Counts')
+    ax.set_title('Scatter Plot: Extreme Kmer Counts (Outliers Highlighted)')
+    ax.legend()
+
     plt.tight_layout()
     plt.savefig(f"{output_prefix}_scatter.png", dpi=300)
+    plt.close()
+
+def plot_end_comparison(stats, output_prefix):
+    labels = ['High (Background)', 'High (End)', 'Low (Background)', 'Low (End)']
+    values = [
+        stats['High_Density_Background'], stats['High_Density_End'],
+        stats['Low_Density_Background'], stats['Low_Density_End']
+    ]
+    colors = ['#ffcccc', 'red', '#ccccff', 'blue']
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.bar(labels, values, color=colors)
+    ax.set_ylabel('Mean Density (counts per kbp)')
+    ax.set_title('Comparison of Extreme Kmer Densities: End vs Background')
+    plt.tight_layout()
+    plt.savefig(f"{output_prefix}_end_comparison.png", dpi=300)
     plt.close()
 
 def parse_ngaps(gff_path):
@@ -64,53 +103,27 @@ def get_gap_overlap(w_start, w_end, seq_gaps):
     return overlap
 
 def calculate_nearest_feature(w_start, w_end, length, seq_gaps):
-    # Features: Left End, Right End, or N-gap
-    # min_dist, type, feature_id
-
-    # Left End
     min_dist = w_start - 1
     f_type = "End-Adjacent"
     f_id = "Left-End"
-
-    # Right End
     r_dist = length - w_end
     if r_dist < min_dist:
         min_dist = r_dist
         f_id = "Right-End"
-
-    # Gaps
     for idx, (g_start, g_end) in enumerate(seq_gaps):
-        # Distance from window to gap
         if g_end < w_start:
             d = w_start - g_end - 1
         elif g_start > w_end:
             d = g_start - w_end - 1
         else:
-            d = 0 # Overlaps gap
-
+            d = 0
         if d < min_dist:
             min_dist = d
             f_type = "N-Adjacent"
             f_id = f"Gap-{idx}"
             if min_dist == 0:
                 break
-
     return max(0, min_dist), f_type, f_id
-
-def plot_end_comparison(stats, output_prefix):
-    labels = ['High (Background)', 'High (End)', 'Low (Background)', 'Low (End)']
-    values = [
-        stats['High_Density_Background'], stats['High_Density_End'],
-        stats['Low_Density_Background'], stats['Low_Density_End']
-    ]
-    colors = ['#ffcccc', 'red', '#ccccff', 'blue']
-    fig, ax = plt.subplots(figsize=(10, 6))
-    ax.bar(labels, values, color=colors)
-    ax.set_ylabel('Mean Density (counts per kbp)')
-    ax.set_title('Comparison of Extreme Kmer Densities: End vs Background')
-    plt.tight_layout()
-    plt.savefig(f"{output_prefix}_end_comparison.png", dpi=300)
-    plt.close()
 
 def main():
     parser = argparse.ArgumentParser(description="Kmer Mass Compare: Compare extreme kmer accumulations across genome windows")
@@ -118,7 +131,7 @@ def main():
     parser.add_argument('-o', '--output', default='mass_compare', help='Output prefix for plots and stats')
     parser.add_argument('--jaccard-minimum', type=int, default=0, help='Minimum count threshold for Jaccard coincidence [default 0]')
     parser.add_argument('--ngaps', help='GFF file of N-gap coordinates')
-    parser.add_argument('--end-threshold', type=int, default=0, help='Distance threshold for "end-associated" windows [default 0]')
+    parser.add_argument('--end-threshold', type=int, default=0, help='Distance threshold for filtering outliers and coloring scatter [default 0]')
     parser.add_argument('-v', '--verbose', action='store_true', help='Verbose mode')
 
     args = parser.parse_args()
@@ -150,18 +163,12 @@ def main():
         min_dist, f_type, f_id = calculate_nearest_feature(w_start, w_end, seq_lengths[seq], seq_gaps)
 
         processed_windows.append({
-            'Sequence': seq,
-            'Start': w_start,
-            'End': w_end,
-            'high': row['high'],
-            'low': row['low'],
-            'MinDist': min_dist,
-            'FeatureType': f_type,
-            'FeatureID': f"{seq}:{f_id}",
+            'Sequence': seq, 'Start': w_start, 'End': w_end,
+            'high': row['high'], 'low': row['low'],
+            'MinDist': min_dist, 'FeatureType': f_type, 'FeatureID': f"{seq}:{f_id}",
             'EffectiveLen': effective_len,
             'High_per_kbp': (row['high'] / effective_len) * 1000,
-            'Low_per_kbp': (row['low'] / effective_len) * 1000,
-            'IsEnd': min_dist <= args.end_threshold
+            'Low_per_kbp': (row['low'] / effective_len) * 1000
         })
 
     win_df = pd.DataFrame(processed_windows)
@@ -169,104 +176,90 @@ def main():
         logger.error("No valid windows found.")
         return
 
-    # Statistics
-    total_high = win_df['high'].sum()
-    total_low = win_df['low'].sum()
-    global_asymmetry = (total_high - total_low) / (total_high + total_low) if (total_high + total_low) > 0 else 0
-    if len(win_df) > 1:
-        pearson_corr, _ = pearsonr(win_df['low'], win_df['high'])
-    else:
-        pearson_corr = np.nan
-    jaccard = calculate_jaccard(win_df, args.jaccard_minimum)
+    # Background Statistics
+    bg_high_mean = win_df['High_per_kbp'].mean()
+    bg_high_sd = win_df['High_per_kbp'].std()
+    bg_low_mean = win_df['Low_per_kbp'].mean()
+    bg_low_sd = win_df['Low_per_kbp'].std()
 
-    # End analysis
-    end_wins = win_df[win_df['IsEnd']]
-    bg_wins = win_df[~win_df['IsEnd']]
+    # Per-sequence background stats
+    seq_backgrounds = {}
+    for seq, group in win_df.groupby('Sequence'):
+        seq_backgrounds[seq] = {
+            'high_mean': group['High_per_kbp'].mean(),
+            'high_sd': group['High_per_kbp'].std(),
+            'low_mean': group['Low_per_kbp'].mean(),
+            'low_sd': group['Low_per_kbp'].std()
+        }
 
-    global_bg_high_mean = bg_wins['High_per_kbp'].mean() if not bg_wins.empty else win_df['High_per_kbp'].mean()
-    global_bg_high_sd = bg_wins['High_per_kbp'].std() if not bg_wins.empty else win_df['High_per_kbp'].std()
-    global_bg_low_mean = bg_wins['Low_per_kbp'].mean() if not bg_wins.empty else win_df['Low_per_kbp'].mean()
-    global_bg_low_sd = bg_wins['Low_per_kbp'].std() if not bg_wins.empty else win_df['Low_per_kbp'].std()
+    # Outlier flagging
+    outlier_rows = []
+    win_df['IsOutlier'] = False
 
-    global_end_stats = {
-        'High_Density_End': end_wins['High_per_kbp'].mean() if not end_wins.empty else 0,
-        'Low_Density_End': end_wins['Low_per_kbp'].mean() if not end_wins.empty else 0,
-        'High_Density_Background': global_bg_high_mean,
-        'Low_Density_Background': global_bg_low_mean
-    }
+    for idx, row in win_df.iterrows():
+        seq = row['Sequence']
+        s_bg = seq_backgrounds[seq]
 
-    # Outliers detection
-    outliers = []
+        is_global_high = row['High_per_kbp'] > (bg_high_mean + bg_high_sd)
+        is_seq_high = row['High_per_kbp'] > (s_bg['high_mean'] + s_bg['high_sd'])
+        is_global_low = row['Low_per_kbp'] > (bg_low_mean + bg_low_sd)
+        is_seq_low = row['Low_per_kbp'] > (s_bg['low_mean'] + s_bg['low_sd'])
 
-    # Sequence-level stats
+        if is_global_high or is_seq_high or is_global_low or is_seq_low:
+            if row['MinDist'] <= args.end_threshold:
+                win_df.at[idx, 'IsOutlier'] = True
+                out_types = []
+                if is_global_high: out_types.append("Global-High")
+                if is_seq_high: out_types.append("Sequence-High")
+                if is_global_low: out_types.append("Global-Low")
+                if is_seq_low: out_types.append("Sequence-Low")
+
+                outlier_rows.append({
+                    'Sequence': seq, 'Length': seq_lengths[seq], 'Window': f"{row['Start']}-{row['End']}",
+                    'High_Density': row['High_per_kbp'], 'Low_Density': row['Low_per_kbp'],
+                    'MinDist': row['MinDist'], 'FeatureType': row['FeatureType'],
+                    'FeatureID': row['FeatureID'], 'OutlierType': ",".join(out_types)
+                })
+
+    df_outliers = pd.DataFrame(outlier_rows)
+
+    # Sequence-level Summary Stats
     seq_stats_list = []
     for seq, group in win_df.groupby('Sequence'):
-        s_len = seq_lengths[seq]
         s_high = group['high'].sum()
         s_low = group['low'].sum()
         s_asym = (s_high - s_low) / (s_high + s_low) if (s_high + s_low) > 0 else 0
-        s_end = group[group['IsEnd']]
-        s_bg = group[~group['IsEnd']]
+
+        s_end = group[group['MinDist'] == 0]
+        s_bg = group[group['MinDist'] > 0]
 
         s_high_end = s_end['High_per_kbp'].mean() if not s_end.empty else 0
-        s_high_bg_mean = s_bg['High_per_kbp'].mean() if not s_bg.empty else group['High_per_kbp'].mean()
-        s_high_bg_sd = s_bg['High_per_kbp'].std() if not s_bg.empty else group['High_per_kbp'].std()
-
+        s_high_bg = s_bg['High_per_kbp'].mean() if not s_bg.empty else group['High_per_kbp'].mean()
         s_low_end = s_end['Low_per_kbp'].mean() if not s_end.empty else 0
-        s_low_bg_mean = s_bg['Low_per_kbp'].mean() if not s_bg.empty else group['Low_per_kbp'].mean()
-        s_low_bg_sd = s_bg['Low_per_kbp'].std() if not s_bg.empty else group['Low_per_kbp'].std()
+        s_low_bg = s_bg['Low_per_kbp'].mean() if not s_bg.empty else group['Low_per_kbp'].mean()
 
         seq_stats_list.append({
-            'Sequence': seq, 'Length': s_len, 'Total_High': s_high, 'Total_Low': s_low,
-            'Asymmetry_Index': s_asym, 'High_Density_End': s_high_end, 'High_Density_Background': s_high_bg_mean,
-            'Low_Density_End': s_low_end, 'Low_Density_Background': s_low_bg_mean
+            'Sequence': seq, 'Length': seq_lengths[seq], 'Total_High': s_high, 'Total_Low': s_low,
+            'Asymmetry_Index': s_asym, 'High_Density_End': s_high_end, 'High_Density_Background': s_high_bg,
+            'Low_Density_End': s_low_end, 'Low_Density_Background': s_low_bg
         })
 
-        # Detect outliers for this sequence
-        for _, w in group.iterrows():
-            is_global_high = w['High_per_kbp'] > (global_bg_high_mean + global_bg_high_sd)
-            is_seq_high = w['High_per_kbp'] > (s_high_bg_mean + s_high_bg_sd)
-            is_global_low = w['Low_per_kbp'] > (global_bg_low_mean + global_bg_low_sd)
-            is_seq_low = w['Low_per_kbp'] > (s_low_bg_mean + s_low_bg_sd)
-            min_dist = w['MinDist'] <= args.end_threshold
-
-            if (is_global_high or is_seq_high or is_global_low or is_seq_low) and min_dist:
-                out_type = []
-                if is_global_high: out_type.append("Global-High")
-                if is_seq_high: out_type.append("Sequence-High")
-                if is_global_low: out_type.append("Global-Low")
-                if is_seq_low: out_type.append("Sequence-Low")
-
-                outliers.append({
-                    'Sequence': seq, 'Length': s_len, 'Window': f"{w['Start']}-{w['End']}",
-                    'High_Density': w['High_per_kbp'], 'Low_Density': w['Low_per_kbp'],
-                    'MinDist': w['MinDist'], 'FeatureType': w['FeatureType'],
-                    'FeatureID': w['FeatureID'], 'OutlierType': ",".join(out_type)
-                })
-
     df_seq_stats = pd.DataFrame(seq_stats_list)
-    df_outliers = pd.DataFrame(outliers)
 
-    # Feature Stats for Ranking
-    high_feature_stats = []
-    low_feature_stats = []
-    for f_id, group in win_df.groupby('FeatureID'):
-        high_feature_stats.append({'id': f_id, 'density': group['High_per_kbp'].mean(), 'type': group['FeatureType'].iloc[0]})
-        low_feature_stats.append({'id': f_id, 'density': group['Low_per_kbp'].mean(), 'type': group['FeatureType'].iloc[0]})
+    total_high = win_df['high'].sum()
+    total_low = win_df['low'].sum()
 
-    # Output
+    # Output files
     stats_file = f"{args.output}.stats"
     with open(stats_file, 'w') as f:
         f.write("# Global Statistics\n")
-        f.write(f"Global_Total_High\t{total_high}\n")
-        f.write(f"Global_Total_Low\t{total_low}\n")
-        f.write(f"Global_Asymmetry_Index\t{global_asymmetry:.4f}\n")
-        f.write(f"Pearson_Correlation\t{pearson_corr:.4f}\n")
-        f.write(f"Jaccard_Coincidence_Index(>{args.jaccard_minimum})\t{jaccard:.4f}\n")
-        f.write(f"Global_Background_High_Mean\t{global_bg_high_mean:.4f}\n")
-        f.write(f"Global_Background_High_SD\t{global_bg_high_sd:.4f}\n")
-        f.write(f"Global_Background_Low_Mean\t{global_bg_low_mean:.4f}\n")
-        f.write(f"Global_Background_Low_SD\t{global_bg_low_sd:.4f}\n")
+        f.write(f"Global_Asymmetry_Index\t{(total_high - total_low) / (total_high + total_low) if (total_high + total_low) > 0 else 0:.4f}\n")
+        f.write(f"Pearson_Correlation\t{pearsonr(win_df['low'], win_df['high'])[0] if len(win_df)>1 else 0:.4f}\n")
+        f.write(f"Jaccard_Coincidence_Index(>{args.jaccard_minimum})\t{calculate_jaccard(win_df, args.jaccard_minimum):.4f}\n")
+        f.write(f"Global_Background_High_Mean\t{bg_high_mean:.4f}\n")
+        f.write(f"Global_Background_High_SD\t{bg_high_sd:.4f}\n")
+        f.write(f"Global_Background_Low_Mean\t{bg_low_mean:.4f}\n")
+        f.write(f"Global_Background_Low_SD\t{bg_low_sd:.4f}\n")
         f.write("\n# Per-Sequence Statistics\n")
     df_seq_stats.to_csv(stats_file, sep='\t', index=False, mode='a')
 
@@ -277,7 +270,14 @@ def main():
     logger.info(f"Outliers written to {outliers_file}")
 
     # Plotting
-    plot_scatter(win_df, args.output)
+    plot_scatter(win_df, args.output, args.end_threshold)
+
+    global_end_stats = {
+        'High_Density_End': win_df[win_df['MinDist']==0]['High_per_kbp'].mean(),
+        'Low_Density_End': win_df[win_df['MinDist']==0]['Low_per_kbp'].mean(),
+        'High_Density_Background': win_df[win_df['MinDist']>0]['High_per_kbp'].mean(),
+        'Low_Density_Background': win_df[win_df['MinDist']>0]['Low_per_kbp'].mean()
+    }
     plot_end_comparison(global_end_stats, args.output)
 
     logger.info(f"Plots generated with prefix {args.output}")
