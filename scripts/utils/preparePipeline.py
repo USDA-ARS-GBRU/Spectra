@@ -265,6 +265,17 @@ def main():
             mass_query_cmd = f"{variables['python']} {shlex.quote(spectra_path + '/scripts/utils/mass-query.py')} -i {variables['assembled']} -q {variables['prefix']}_kmer_rank.tsv -m {variables['mer_size']} -o {variables['prefix']}_mass_query.tsv -c -w {variables['mq_window']} -t {variables['threads']} -s {variables['mq_window']} --minimum-size {variables['minimum_size']} --percentile-low $PERCENTILE_LOW --percentile-high $PERCENTILE_HIGH"
 
             f.write(mass_query_cmd + "\n")
+
+            # n-counter if requested
+            if args.ngaps:
+                f.write(f"{variables['python']} {shlex.quote(spectra_path + '/scripts/utils/n-counter.py')} -i {variables['assembled']} -o {variables['prefix']}_ngaps.gff -v\n")
+
+            # mass-compare
+            mass_compare_cmd = f"{variables['python']} {shlex.quote(spectra_path + '/scripts/utils/mass-compare.py')} -i {variables['prefix']}_mass_query.tsv -o {variables['prefix']}/{variables['prefix']} --end-threshold {args.mq_window * 5}"
+            if args.ngaps:
+                mass_compare_cmd += f" --ngaps {variables['prefix']}_ngaps.gff"
+            f.write(mass_compare_cmd + "\n")
+
             f.write(f"{variables['python']} {shlex.quote(spectra_path + '/spectra.py')} plot -i {variables['prefix']}_mass_query.tsv -o {variables['prefix']}/{variables['prefix']}_mass -a\n")
             if args.time:
                 f.write(f'echo "Ending {variables["mer_size"]}-mer localization at:"\ndate\n\n')
@@ -287,7 +298,6 @@ def main():
                 f.write(f"{variables['python']} {shlex.quote(spectra_path + '/spectra.py')} analyze -i {variables['prefix']}_spectra_standard.tsv -o {variables['prefix']}_spectra_standard -p {variables['bin_penalty']} -s {variables['bin_size']} -v\n")
                 spectra_string += f" --gff-file={variables['prefix']}_spectra_standard_bins.gff --gff-tracks=bin-region"
             if args.ngaps:
-                f.write(f"{variables['python']} {shlex.quote(spectra_path + '/scripts/utils/n-counter.py')} -i {variables['assembled']} -o {variables['prefix']}_ngaps.gff -v\n")
                 spectra_string += f" --ngaps={variables['prefix']}_ngaps.gff"
             f.write(spectra_string + "\n")
 

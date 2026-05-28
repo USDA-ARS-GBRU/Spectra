@@ -139,6 +139,23 @@ def add_abundance_density_section(story, image_dir, prefix, mer, styles):
     ]
     add_image_row(story, paths, [3.75 * inch] * 2, [4.5 * inch] * 2, styles)
 
+def add_mass_compare_section(story, image_dir, prefix, styles):
+    story.append(PageBreak())
+    story.append(Paragraph(
+        f"<b>Extreme K-mer Coincidence:</b> These scatter plots compare the counts of 'high' and 'low' extreme k-mers across genomic windows. "
+        f"'High' k-mers are those over-represented in the assembly relative to raw reads, while 'low' k-mers are under-represented. "
+        f"Windows identified as outliers (exceeding standard deviation thresholds) are highlighted. "
+        f"The color gradient from red to pink indicates the proximity of these outliers to genomic features such as sequence ends or N-gaps, "
+        f"helping distinguish between expected edge effects and potential assembly artifacts. "
+        f"The log10-scale plot (right) provides finer resolution for windows with lower absolute k-mer counts.",
+        styles["Normal"]))
+
+    paths = [
+        os.path.join(image_dir, f"{prefix}_scatter.png"),
+        os.path.join(image_dir, f"{prefix}_scatter_log10.png")
+    ]
+    add_image_row(story, paths, [3.75 * inch] * 2, [4.5 * inch] * 2, styles)
+
 def add_distribution_section(story, image_dir, prefix, mer, styles, percentile_low, percentile_high):
     story.append(PageBreak())
     story.append(Paragraph(
@@ -261,6 +278,7 @@ def make_report(output_pdf, image_dir, mer, prefix, bins=False, ngaps=False, max
     add_kmer_distribution_section(story, image_dir, prefix, mer, styles, percentile_low=percentile_low, percentile_high=percentile_high)
     add_distribution_section(story, image_dir, prefix, mer, styles, percentile_low=percentile_low, percentile_high=percentile_high)
     add_abundance_density_section(story, image_dir, prefix, mer, styles)
+    add_mass_compare_section(story, image_dir, prefix, styles)
 
     sequence_names = get_sequence_names(image_dir, prefix)
     add_sequence_breakdown_section(story, image_dir, prefix, mer, sequence_names, max_output, ngaps, bins, styles, spectra_dir=spectra_dir, canonical=canonical, percentile_low=percentile_low, percentile_high=percentile_high)
