@@ -19,7 +19,7 @@ def calculate_jaccard(df, threshold):
     union = np.logical_or(high_present, low_present).sum()
     return intersection / union if union > 0 else 0.0
 
-def plot_scatter(win_df, output_prefix, end_threshold):
+def plot_scatter(win_df, output_prefix, end_threshold, log_scale=False):
     fig, ax = plt.subplots(figsize=(10, 10))
 
     # Background windows (non-outliers)
@@ -35,11 +35,11 @@ def plot_scatter(win_df, output_prefix, end_threshold):
             norm_dists = dists / end_threshold
             colors = [(1, 0, 0), (1, 0.75, 0.8)] # Red to Pink
             cm = LinearSegmentedColormap.from_list('outlier_cm', colors, N=100)
-            sc = ax.scatter(outliers['low'], outliers['high'], c=norm_dists, cmap=cm, s=15, alpha=0.8, label='Outliers', vmin=0, vmax=1)
+            sc = ax.scatter(outliers['low'], outliers['high'], c=norm_dists, cmap=cm, s=5, alpha=0.8, label='Outliers', vmin=0, vmax=1)
             cbar = plt.colorbar(sc, ax=ax)
             cbar.set_label(f'Distance from Feature (0 to {end_threshold})')
         else:
-            ax.scatter(outliers['low'], outliers['high'], alpha=0.8, s=15, color='red', label='Outliers (Dist 0)')
+            ax.scatter(outliers['low'], outliers['high'], alpha=0.8, s=5, color='red', label='Outliers (Dist 0)')
 
     # Add diagonal line
     max_val = max(win_df['high'].max(), win_df['low'].max())
@@ -49,9 +49,14 @@ def plot_scatter(win_df, output_prefix, end_threshold):
     ax.set_ylabel('High Extreme Kmer Count')
     ax.set_title('Scatter Plot: Extreme Kmer Counts (Outliers Highlighted)')
     ax.legend()
-
-    plt.tight_layout()
-    plt.savefig(f"{output_prefix}_scatter.png", dpi=300)
+    if log_scale:
+        plt.xscale("log")
+        plt.yscale("log")
+        plt.tight_layout()
+        plt.savefig(f"{output_prefix}_scatter_log10.png", dpi=300)
+    else:
+        plt.tight_layout()
+        plt.savefig(f"{output_prefix}_scatter.png", dpi=300)
     plt.close()
 
 def plot_end_comparison(stats, output_prefix):
@@ -204,22 +209,21 @@ def main():
         is_seq_high = row['High_per_kbp'] > (s_bg['high_mean'] + s_bg['high_sd'])
         is_global_low = row['Low_per_kbp'] > (bg_low_mean + bg_low_sd)
         is_seq_low = row['Low_per_kbp'] > (s_bg['low_mean'] + s_bg['low_sd'])
+        min_dist = row['MinDist'] <= args.end_threshold
+        if (is_global_high or is_seq_high or is_global_low or is_seq_low) and min_dist:
+            win_df.at[idx, 'IsOutlier'] = True
+            out_types = []
+            if is_global_high: out_types.append("Global-High")
+            if is_seq_high: out_types.append("Sequence-High")
+            if is_global_low: out_types.append("Global-Low")
+            if is_seq_low: out_types.append("Sequence-Low")
 
-        if is_global_high or is_seq_high or is_global_low or is_seq_low:
-            if row['MinDist'] <= args.end_threshold:
-                win_df.at[idx, 'IsOutlier'] = True
-                out_types = []
-                if is_global_high: out_types.append("Global-High")
-                if is_seq_high: out_types.append("Sequence-High")
-                if is_global_low: out_types.append("Global-Low")
-                if is_seq_low: out_types.append("Sequence-Low")
-
-                outlier_rows.append({
-                    'Sequence': seq, 'Length': seq_lengths[seq], 'Window': f"{row['Start']}-{row['End']}",
-                    'High_Density': row['High_per_kbp'], 'Low_Density': row['Low_per_kbp'],
-                    'MinDist': row['MinDist'], 'FeatureType': row['FeatureType'],
-                    'FeatureID': row['FeatureID'], 'OutlierType': ",".join(out_types)
-                })
+            outlier_rows.append({
+                'Sequence': seq, 'Length': seq_lengths[seq], 'Window': f"{row['Start']}-{row['End']}",
+                'High_Density': row['High_per_kbp'], 'Low_Density': row['Low_per_kbp'],
+                'MinDist': row['MinDist'], 'FeatureType': row['FeatureType'],
+                'FeatureID': row['FeatureID'], 'OutlierType': ",".join(out_types)
+            })
 
     df_outliers = pd.DataFrame(outlier_rows)
 
@@ -271,6 +275,7 @@ def main():
 
     # Plotting
     plot_scatter(win_df, args.output, args.end_threshold)
+    plot_scatter(win_df, args.output, args.end_threshold, log_scale=True)
 
     global_end_stats = {
         'High_Density_End': win_df[win_df['MinDist']==0]['High_per_kbp'].mean(),
