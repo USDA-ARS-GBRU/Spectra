@@ -30,19 +30,6 @@ def plot_scatter(df, output_prefix):
     plt.savefig(f"{output_prefix}_scatter.png", dpi=300)
     plt.close()
 
-def plot_asymmetry_v_length(df_seq_stats, output_prefix):
-    fig, ax = plt.subplots(figsize=(10, 6))
-    ax.scatter(df_seq_stats['Length'], df_seq_stats['Asymmetry_Index'], alpha=0.7, color='green')
-    ax.axhline(0, color='black', linestyle='--', alpha=0.5)
-    ax.set_xlabel('Sequence Length (bp)')
-    ax.set_ylabel('Asymmetry Index')
-    ax.set_title('Sequence Asymmetry Index vs Length')
-    ax.xaxis.set_major_formatter(plt.ScalarFormatter(useMathText=True))
-    ax.ticklabel_format(style='sci', axis='x', scilimits=(0,0))
-    plt.tight_layout()
-    plt.savefig(f"{output_prefix}_asymmetry_v_length.png", dpi=300)
-    plt.close()
-
 def parse_ngaps(gff_path):
     gaps = {}
     if not gff_path or not os.path.exists(gff_path):
@@ -110,20 +97,6 @@ def calculate_nearest_feature(w_start, w_end, length, seq_gaps):
 
     return max(0, min_dist), f_type, f_id
 
-def plot_density_v_distance(plot_data, output_prefix):
-    fig, ax = plt.subplots(figsize=(12, 6))
-    ax.scatter(plot_data['MinDist'], plot_data['High_per_kbp'], alpha=0.4, color='red', s=5, label='High Bin')
-    ax.scatter(plot_data['MinDist'], plot_data['Low_per_kbp'], alpha=0.4, color='blue', s=5, label='Low Bin')
-    ax.set_xlabel('Distance from Sequence End or N-gap (bp)')
-    ax.set_ylabel('Extreme Kmer Density (counts per kbp)')
-    ax.set_title('Extreme Kmer Density vs Distance from Nearest Feature')
-    ax.xaxis.set_major_formatter(plt.ScalarFormatter(useMathText=True))
-    ax.ticklabel_format(style='sci', axis='x', scilimits=(0,0))
-    ax.legend()
-    plt.tight_layout()
-    plt.savefig(f"{output_prefix}_density_v_distance.png", dpi=300)
-    plt.close()
-
 def plot_end_comparison(stats, output_prefix):
     labels = ['High (Background)', 'High (End)', 'Low (Background)', 'Low (End)']
     values = [
@@ -137,23 +110,6 @@ def plot_end_comparison(stats, output_prefix):
     ax.set_title('Comparison of Extreme Kmer Densities: End vs Background')
     plt.tight_layout()
     plt.savefig(f"{output_prefix}_end_comparison.png", dpi=300)
-    plt.close()
-
-def plot_ranked_features(feature_stats, bin_type, output_prefix):
-    # feature_stats: list of {id, density, type}
-    df = pd.DataFrame(feature_stats).sort_values('density', ascending=False).head(30)
-    if df.empty:
-        return
-
-    fig, ax = plt.subplots(figsize=(12, 8))
-    colors = ['red' if t == 'End-Adjacent' else 'orange' for t in df['type']]
-    ax.bar(df['id'], df['density'], color=colors)
-    ax.set_ylabel(f'Mean {bin_type} Density (counts per kbp)')
-    ax.set_xlabel('Feature Instance')
-    ax.set_title(f'Top 30 Ranked Features by {bin_type} Density')
-    plt.xticks(rotation=90, fontsize=8)
-    plt.tight_layout()
-    plt.savefig(f"{output_prefix}_ranked_{bin_type.lower()}.png", dpi=300)
     plt.close()
 
 def main():
@@ -272,8 +228,9 @@ def main():
             is_seq_high = w['High_per_kbp'] > (s_high_bg_mean + s_high_bg_sd)
             is_global_low = w['Low_per_kbp'] > (global_bg_low_mean + global_bg_low_sd)
             is_seq_low = w['Low_per_kbp'] > (s_low_bg_mean + s_low_bg_sd)
+            min_dist = w['MinDist'] <= args.end_threshold
 
-            if is_global_high or is_seq_high or is_global_low or is_seq_low:
+            if (is_global_high or is_seq_high or is_global_low or is_seq_low) and min_dist:
                 out_type = []
                 if is_global_high: out_type.append("Global-High")
                 if is_seq_high: out_type.append("Sequence-High")
@@ -321,11 +278,7 @@ def main():
 
     # Plotting
     plot_scatter(win_df, args.output)
-    plot_asymmetry_v_length(df_seq_stats, args.output)
-    plot_density_v_distance(win_df, args.output)
     plot_end_comparison(global_end_stats, args.output)
-    plot_ranked_features(high_feature_stats, "High", args.output)
-    plot_ranked_features(low_feature_stats, "Low", args.output)
 
     logger.info(f"Plots generated with prefix {args.output}")
 
