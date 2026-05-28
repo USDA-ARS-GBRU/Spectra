@@ -104,11 +104,20 @@ bash athal_pipeline.sh
 
 The pipeline generates several files and a comprehensive PDF report. Below is a detailed breakdown of what these outputs represent.
 
+## Global Assembly Metrics
+The pipeline calculates several metrics to assess the overall relationship between extreme k-mers:
+*   **Asymmetry Index**: Measures the balance between over-represented ("high") and under-represented ("low") k-mers. A value close to 0 indicates a balance, while values approaching 1 or -1 suggest a bias towards one type of extreme k-mer.
+*   **Pearson Correlation**: Quantifies the linear relationship between high and low extreme k-mer counts across windows.
+*   **Jaccard Coincidence Index**: Represents the proportion of windows where both high and low extreme k-mers are significantly present, indicating regions of complex k-mer instability.
+
 ## Summary Files
 *   `{prefix}_raw_count.kstats`: Summary statistics for k-mers found in the raw reads (e.g., total k-mers, unique k-mers).
 *   `{prefix}_asm_count.kstats`: Summary statistics for k-mers found in the assembly.
 *   `{prefix}_spectra.tsv`: A large table containing the counts of all 64 possible 3-mers across sliding windows of the assembly.
 *   `{prefix}_kmer_rank.tsv`: A list of all k-mers (size *K*) ranked by their log-fold change between raw reads and the assembly.
+*   `{prefix}_kmer_comp_percentiles.txt`: A file containing the calculated low and high percentile thresholds used for k-mer localization.
+*   `{prefix}.stats`: Global and per-sequence statistics including Asymmetry Index, Pearson Correlation, and Jaccard Coincidence.
+*   `{prefix}.outliers.tsv`: A list of genomic windows identified as outliers in extreme k-mer density, including distance to nearest features.
 
 ## The PDF Report (`{prefix}_report.pdf`)
 The report is the primary way to visualize the results. It is divided into several sections:
@@ -122,7 +131,12 @@ These plots help you see how well the k-mers in your assembly match the k-mers i
 ### 2. Empirical Cumulative Distribution (ECDF)
 This plot shows the cumulative probability of log-fold changes. It's a technical way to see what proportion of k-mers fall below a certain change threshold.
 
-### 3. Sequence-Specific Breakdowns
+### 3. Extreme K-mer Coincidence
+These scatter plots compare the counts of "high" and "low" extreme k-mers across the assembly.
+*   **Scatter Plot**: Highlights genomic windows where extreme k-mer counts deviate significantly from the background.
+*   **Outlier Visualization**: Outliers are color-coded based on their distance to sequence ends or N-gaps, helping to identify if clusters of extreme k-mers are associated with assembly features or potential errors.
+
+### 4. Sequence-Specific Breakdowns
 For each major sequence (contig/chromosome) in your assembly, the report provides:
 *   **High-Abundance K-mers (Top Plot)**: Localizes k-mers that are much more common in the assembly than expected (potential collapses or repetitive elements).
 *   **Spectra (Middle Plot)**: Visualizes the 3-mer "fingerprint" along the sequence. Different colors represent different 3-mers. Sudden shifts in the color patterns can indicate boundaries between different types of genetic material (e.g., transitions into centromeres or telomeres).
