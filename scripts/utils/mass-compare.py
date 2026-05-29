@@ -19,7 +19,7 @@ def calculate_jaccard(df, threshold):
     union = np.logical_or(high_present, low_present).sum()
     return intersection / union if union > 0 else 0.0
 
-def plot_scatter(win_df, output_prefix, end_threshold, log_scale=False):
+def plot_scatter(win_df, output_prefix, end_threshold, log_scale=False, value_column="Count"):
     fig, ax = plt.subplots(figsize=(10, 10))
 
     # Background windows (non-outliers)
@@ -45,9 +45,9 @@ def plot_scatter(win_df, output_prefix, end_threshold, log_scale=False):
     max_val = max(win_df['high'].max(), win_df['low'].max())
     ax.plot([0, max_val], [0, max_val], 'k--', alpha=0.5)
 
-    ax.set_xlabel('Low Extreme Kmer Count')
-    ax.set_ylabel('High Extreme Kmer Count')
-    ax.set_title('Scatter Plot: Extreme Kmer Counts (Outliers Highlighted)')
+    ax.set_xlabel(f'Low Extreme Kmer {value_column}')
+    ax.set_ylabel(f'High Extreme Kmer {value_column}')
+    ax.set_title(f'Scatter Plot: Extreme Kmer {value_column}s (Outliers Highlighted)')
     ax.legend()
     if log_scale:
         plt.xscale("log")
@@ -59,7 +59,7 @@ def plot_scatter(win_df, output_prefix, end_threshold, log_scale=False):
         plt.savefig(f"{output_prefix}_scatter.png", dpi=300)
     plt.close()
 
-def plot_end_comparison(stats, output_prefix):
+def plot_end_comparison(stats, output_prefix, value_column="Count"):
     labels = ['High (Background)', 'High (End)', 'Low (Background)', 'Low (End)']
     values = [
         stats['High_Density_Background'], stats['High_Density_End'],
@@ -68,8 +68,9 @@ def plot_end_comparison(stats, output_prefix):
     colors = ['#ffcccc', 'red', '#ccccff', 'blue']
     fig, ax = plt.subplots(figsize=(10, 6))
     ax.bar(labels, values, color=colors)
-    ax.set_ylabel('Mean Density (counts per kbp)')
-    ax.set_title('Comparison of Extreme Kmer Densities: End vs Background')
+    ylabel = 'Mean Density (counts per kbp)' if value_column == "Count" else 'Mean Coverage (bp per kbp)'
+    ax.set_ylabel(ylabel)
+    ax.set_title(f'Comparison of Extreme Kmer {value_column} Densities: End vs Background')
     plt.tight_layout()
     plt.savefig(f"{output_prefix}_end_comparison.png", dpi=300)
     plt.close()
@@ -137,6 +138,7 @@ def main():
     parser.add_argument('--jaccard-minimum', type=int, default=0, help='Minimum count threshold for Jaccard coincidence [default 0]')
     parser.add_argument('--ngaps', help='GFF file of N-gap coordinates')
     parser.add_argument('--end-threshold', type=int, default=0, help='Distance threshold for filtering outliers and coloring scatter [default 0]')
+    parser.add_argument('--value-column', dest='value_column', default='Count', choices=['Count', 'Basepairs'], help='Column to use for values [default Count]')
     parser.add_argument('-v', '--verbose', action='store_true', help='Verbose mode')
 
     args = parser.parse_args()
@@ -147,7 +149,11 @@ def main():
         return
 
     df = pd.read_csv(args.input, sep='\t')
-    pivot_df = df.pivot_table(index=['Sequence', 'Start', 'End'], columns='Bin', values='Count', fill_value=0).reset_index()
+    if args.value_column not in df.columns:
+        logger.error(f"Value column '{args.value_column}' not found in input. Defaulting to 'Count'.")
+        args.value_column = 'Count'
+
+    pivot_df = df.pivot_table(index=['Sequence', 'Start', 'End'], columns='Bin', values=args.value_column, fill_value=0).reset_index()
     if 'high' not in pivot_df.columns: pivot_df['high'] = 0
     if 'low' not in pivot_df.columns: pivot_df['low'] = 0
 
@@ -274,8 +280,8 @@ def main():
     logger.info(f"Outliers written to {outliers_file}")
 
     # Plotting
-    plot_scatter(win_df, args.output, args.end_threshold)
-    plot_scatter(win_df, args.output, args.end_threshold, log_scale=True)
+    plot_scatter(win_df, args.output, args.end_threshold, value_column=args.value_column)
+    plot_scatter(win_df, args.output, args.end_threshold, log_scale=True, value_column=args.value_column)
 
     global_end_stats = {
         'High_Density_End': win_df[win_df['MinDist']==0]['High_per_kbp'].mean(),
@@ -283,7 +289,7 @@ def main():
         'High_Density_Background': win_df[win_df['MinDist']>0]['High_per_kbp'].mean(),
         'Low_Density_Background': win_df[win_df['MinDist']>0]['Low_per_kbp'].mean()
     }
-    plot_end_comparison(global_end_stats, args.output)
+    plot_end_comparison(global_end_stats, args.output, value_column=args.value_column)
 
     logger.info(f"Plots generated with prefix {args.output}")
 
