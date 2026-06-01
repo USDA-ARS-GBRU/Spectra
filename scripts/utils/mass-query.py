@@ -19,6 +19,23 @@ GLOBAL_KMER_MAP = None
 GLOBAL_MER_SIZE = None
 GLOBAL_BIN_NAMES = None
 
+def calculate_bp_coverage(starts, k):
+    """Calculate the number of unique base positions covered by k-mers of length k starting at 'starts'."""
+    if not starts:
+        return 0
+    starts = sorted(starts)
+    total_bp = 0
+    current_end = -1
+    for s in starts:
+        s_end = s + k
+        if s > current_end:
+            total_bp += k
+            current_end = s_end
+        elif s_end > current_end:
+            total_bp += (s_end - current_end)
+            current_end = s_end
+    return total_bp
+
 # Sliding window utility
 def window_tasks(sequence_record, width, spacing, sequence_name, offset=0):
     seq_len = len(sequence_record)
@@ -34,21 +51,37 @@ def window_tasks(sequence_record, width, spacing, sequence_name, offset=0):
 def process_window(task):
     window_seq, sequence_name, start, end = task
     local_counts = Counter()
+    # bin_id -> list of relative start positions in this window
+    match_starts = {bin_id: [] for bin_id in range(len(GLOBAL_BIN_NAMES))}
+
     for i in range(len(window_seq) - GLOBAL_MER_SIZE + 1):
         kmer = window_seq[i:i + GLOBAL_MER_SIZE]
         bin_ids = GLOBAL_KMER_MAP.get(kmer)
         if bin_ids is not None:
             if isinstance(bin_ids, int):
-                local_counts[bin_ids] += 1
-            else:
-                for bin_id in bin_ids:
-                    local_counts[bin_id] += 1
+                bin_ids = [bin_ids]
+            for bin_id in bin_ids:
+                local_counts[bin_id] += 1
+                match_starts[bin_id].append(i)
 
     rows = []
+    # bin_id -> absolute start positions for sequence-wide calculation
+    seq_match_starts = {bin_id: [] for bin_id in range(len(GLOBAL_BIN_NAMES))}
+
     for bin_id, bin_name in enumerate(GLOBAL_BIN_NAMES):
         count = local_counts.get(bin_id, 0)
-        rows.append([sequence_name, bin_name, start + 1, end, count])
-    return rows
+
+        # Calculate BP for THIS window
+        covered = bytearray(len(window_seq))
+        for s in match_starts[bin_id]:
+            for j in range(s, s + GLOBAL_MER_SIZE):
+                covered[j] = 1
+            seq_match_starts[bin_id].append(start + s)
+
+        bp_covered = sum(covered)
+        rows.append([sequence_name, bin_name, start + 1, end, count, bp_covered])
+
+    return rows, seq_match_starts
 
 def init_worker(kmer_map, mer_size, bin_names):
     global GLOBAL_KMER_MAP
@@ -181,9 +214,14 @@ def main():
     # Prepare output
     try:
         quality_metrics = []
+        global_low_count = 0
+        global_high_count = 0
+        global_low_bp = 0
+        global_high_bp = 0
+
         with open(args.output, "w", newline="") as file_output:
             tsv_writer = csv.writer(file_output, delimiter="\t")
-            tsv_writer.writerow(["Sequence", "Bin", "Start", "End", "Count"])
+            tsv_writer.writerow(["Sequence", "Bin", "Start", "End", "Count", "Basepairs"])
 
             # Scan genome once
             for record in SeqIO.parse(args.input, args.format):
@@ -195,13 +233,14 @@ def main():
                 logger.info(f"Processing sequence {sequence_name} ({sequence_length:,} bp)")
                 seq_total_extreme_low = 0
                 seq_total_extreme_high = 0
+                seq_match_pos = {0: [], 1: []}
                 seq_windows = 0
 
                 if sequence_length > args.chunk_size:
                     for i in range(0, sequence_length, args.chunk_size):
                         sub_seq = str(record.seq[i:i + args.chunk_size]).upper()
                         tasks = window_tasks(sub_seq, args.width, args.spacing, sequence_name, offset=i)
-                        for result_rows in pool.imap(process_window, tasks):
+                        for result_rows, window_match_starts in pool.imap(process_window, tasks):
                             seq_windows += 1
                             for row in result_rows:
                                 tsv_writer.writerow(row)
@@ -212,11 +251,13 @@ def main():
                                     seq_total_extreme_low += count
                                 else:
                                     seq_total_extreme_high += count
+                            for bin_id, starts in window_match_starts.items():
+                                seq_match_pos[bin_id].extend(starts)
                         del sub_seq
                 else:
                     seq_str = str(record.seq).upper()
                     tasks = window_tasks(seq_str, args.width, args.spacing, sequence_name)
-                    for result_rows in pool.imap(process_window, tasks):
+                    for result_rows, window_match_starts in pool.imap(process_window, tasks):
                         seq_windows += 1
                         for row in result_rows:
                             tsv_writer.writerow(row)
@@ -226,9 +267,19 @@ def main():
                                 seq_total_extreme_low += count
                             else:
                                 seq_total_extreme_high += count
+                        for bin_id, starts in window_match_starts.items():
+                            seq_match_pos[bin_id].extend(starts)
                     del seq_str
 
                 # Calculate sequence-level metric
+                seq_low_bp = calculate_bp_coverage(seq_match_pos[0], args.mer_size)
+                seq_high_bp = calculate_bp_coverage(seq_match_pos[1], args.mer_size)
+
+                global_low_count += seq_total_extreme_low
+                global_high_count += seq_total_extreme_high
+                global_low_bp += seq_low_bp
+                global_high_bp += seq_high_bp
+
                 # Extreme k-mer density (extreme k-mers per bp)
                 if sequence_length > 0:
                     low_density = seq_total_extreme_low / sequence_length
@@ -236,19 +287,32 @@ def main():
                     quality_metrics.append({
                         'Sequence': sequence_name,
                         'Length': sequence_length,
+                        'ExtremeLowBP': seq_low_bp,
+                        'ExtremeHighBP': seq_high_bp,
                         'ExtremeLowCount': seq_total_extreme_low,
                         'ExtremeHighCount': seq_total_extreme_high,
                         'LowDensity': low_density,
                         'HighDensity': high_density
                     })
 
+        # Count unique kmers used in search for each bin
+        kmers_below = sum(1 for k, v in kmer_map.items() if (v == 0 or (isinstance(v, list) and 0 in v)))
+        kmers_above = sum(1 for k, v in kmer_map.items() if (v == 1 or (isinstance(v, list) and 1 in v)))
+
         # Write quality metrics to a separate file
         metrics_output = args.output.replace('.tsv', '_metrics.tsv')
         with open(metrics_output, 'w', newline='') as f:
-            # Include metadata about thresholds used
+            # Include metadata about thresholds used and global stats
             f.write(f"# Low_Percentile_Threshold: {args.percentile_low}\n")
+            f.write(f"# K-mers_Below: {kmers_below}\n")
+            f.write(f"# Low_Count: {global_low_count}\n")
+            f.write(f"# Low_Basepairs: {global_low_bp}\n")
             f.write(f"# High_Percentile_Threshold: {args.percentile_high}\n")
-            fieldnames = ['Sequence', 'Length', 'ExtremeLowCount', 'ExtremeHighCount', 'LowDensity', 'HighDensity']
+            f.write(f"# K-mers_Above: {kmers_above}\n")
+            f.write(f"# High_Count: {global_high_count}\n")
+            f.write(f"# High_Basepairs: {global_high_bp}\n")
+
+            fieldnames = ['Sequence', 'Length', 'ExtremeLowBP', 'ExtremeHighBP', 'ExtremeLowCount', 'ExtremeHighCount', 'LowDensity', 'HighDensity']
             writer = csv.DictWriter(f, fieldnames=fieldnames, delimiter='\t')
             writer.writeheader()
             for m in quality_metrics:
