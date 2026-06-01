@@ -47,7 +47,7 @@ def plot_scatter(win_df, output_prefix, end_threshold, log_scale=False, value_co
 
     ax.set_xlabel(f'Low Extreme Kmer {value_column}')
     ax.set_ylabel(f'High Extreme Kmer {value_column}')
-    ax.set_title(f'Scatter Plot: Extreme Kmer {value_column}s (Outliers Highlighted)')
+    ax.set_title(f'Scatter Plot: Extreme Kmer {value_column} (Outliers Highlighted)')
     ax.legend()
     if log_scale:
         plt.xscale("log")
@@ -70,7 +70,7 @@ def plot_end_comparison(stats, output_prefix, value_column="Count"):
     ax.bar(labels, values, color=colors)
     ylabel = 'Mean Density (counts per kbp)' if value_column == "Count" else 'Mean Coverage (bp per kbp)'
     ax.set_ylabel(ylabel)
-    ax.set_title(f'Comparison of Extreme Kmer {value_column} Densities: End vs Background')
+    ax.set_title(f'Comparison of Extreme Kmer {value_column} Densities: Sequence Ends vs Background')
     plt.tight_layout()
     plt.savefig(f"{output_prefix}_end_comparison.png", dpi=300)
     plt.close()
