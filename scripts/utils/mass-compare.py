@@ -33,9 +33,9 @@ def plot_scatter(win_df, output_prefix, end_threshold, log_scale=False, value_co
         if end_threshold > 0:
             dists = np.clip(outliers['MinDist'], 0, end_threshold)
             norm_dists = dists / end_threshold
-            colors = [(1, 0, 0), (1, 0.75, 0.8)] # Red to Pink
+            colors = [(.85, 0, 0), (1, 0.75, 0.8)] # Red to Pink
             cm = LinearSegmentedColormap.from_list('outlier_cm', colors, N=100)
-            sc = ax.scatter(outliers['low'], outliers['high'], c=norm_dists, cmap=cm, s=5, alpha=0.8, label='Outliers', vmin=0, vmax=1)
+            sc = ax.scatter(outliers['low'], outliers['high'], c=norm_dists, cmap=cm, s=10, alpha=0.8, label='Outliers', vmin=0, vmax=1)
             cbar = plt.colorbar(sc, ax=ax)
             cbar.set_label(f'Distance from Feature (0 to {end_threshold})')
         else:
